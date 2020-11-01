@@ -5,6 +5,7 @@
 
  Sketch voor een interface tussen arduino en Processing
 
+
 */
 
 // the setup function runs once when you press reset or power the board
