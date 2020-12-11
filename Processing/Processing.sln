@@ -14,6 +14,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Adafruit_SSD1306-2.1.0", "L
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Adafruit_GFX_Library-1.7.5", "Libraries\Adafruit_GFX_Library\1.7.5\Adafruit_GFX_Library\Adafruit_GFX_Library-1.7.5.vcxitems", "{4FAD0E82-26F8-465A-B004-6475E1595DBF}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BomBPuzzel", "Sketch1\Sketch1.vcxproj", "{B4BA5C46-76B5-46E0-A14F-094289AA0512}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		Libraries\Adafruit_GFX_Library\1.7.5\Adafruit_GFX_Library\Adafruit_GFX_Library-1.7.5.vcxitems*{4fad0e82-26f8-465a-b004-6475e1595dbf}*SharedItemsImports = 9
@@ -30,6 +32,10 @@ Global
 		{C5F80730-F44F-4478-BDAE-6634EFC2CA88}.Debug|x86.Build.0 = Debug|Win32
 		{C5F80730-F44F-4478-BDAE-6634EFC2CA88}.Release|x86.ActiveCfg = Release|Win32
 		{C5F80730-F44F-4478-BDAE-6634EFC2CA88}.Release|x86.Build.0 = Release|Win32
+		{B4BA5C46-76B5-46E0-A14F-094289AA0512}.Debug|x86.ActiveCfg = Debug|Win32
+		{B4BA5C46-76B5-46E0-A14F-094289AA0512}.Debug|x86.Build.0 = Debug|Win32
+		{B4BA5C46-76B5-46E0-A14F-094289AA0512}.Release|x86.ActiveCfg = Release|Win32
+		{B4BA5C46-76B5-46E0-A14F-094289AA0512}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
