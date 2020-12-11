@@ -16,12 +16,21 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Adafruit_GFX_Library-1.7.5"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BomBPuzzel", "Sketch1\Sketch1.vcxproj", "{B4BA5C46-76B5-46E0-A14F-094289AA0512}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FastLED-master-3.1.6", "Libraries\FastLED-master\3.1.6\FastLED-master\FastLED-master-3.1.6.vcxitems", "{08D2381F-8643-4A7A-BFD3-88D40931953C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EEPROM-2.0", "Libraries\EEPROM\2.0\EEPROM\EEPROM-2.0.vcxitems", "{F6EC6088-2182-4314-BD98-FAF2B9DB2FBD}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		Libraries\FastLED-master\3.1.6\FastLED-master\FastLED-master-3.1.6.vcxitems*{08d2381f-8643-4a7a-bfd3-88d40931953c}*SharedItemsImports = 9
 		Libraries\Adafruit_GFX_Library\1.7.5\Adafruit_GFX_Library\Adafruit_GFX_Library-1.7.5.vcxitems*{4fad0e82-26f8-465a-b004-6475e1595dbf}*SharedItemsImports = 9
 		Libraries\Adafruit_SSD1306\2.1.0\Adafruit_SSD1306\Adafruit_SSD1306-2.1.0.vcxitems*{a9386729-756b-4b91-94cb-681a3844045f}*SharedItemsImports = 9
+		Libraries\EEPROM\2.0\EEPROM\EEPROM-2.0.vcxitems*{b4ba5c46-76b5-46e0-a14f-094289aa0512}*SharedItemsImports = 4
+		Libraries\FastLED-master\3.1.6\FastLED-master\FastLED-master-3.1.6.vcxitems*{b4ba5c46-76b5-46e0-a14f-094289aa0512}*SharedItemsImports = 4
+		Sketch1\Libraries\EEPROM\2.0\EEPROM\EEPROM-2.0.vcxitems*{b4ba5c46-76b5-46e0-a14f-094289aa0512}*SharedItemsImports = 4
 		Libraries\Adafruit_GFX_Library\1.7.5\Adafruit_GFX_Library\Adafruit_GFX_Library-1.7.5.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
 		Libraries\Adafruit_SSD1306\2.1.0\Adafruit_SSD1306\Adafruit_SSD1306-2.1.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
+		Libraries\EEPROM\2.0\EEPROM\EEPROM-2.0.vcxitems*{f6ec6088-2182-4314-bd98-faf2b9db2fbd}*SharedItemsImports = 9
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
