@@ -4,3 +4,15 @@
 
 Pins
 Pin4= Ws2811  DO
+
+EEPROM
+100 Mem_reg
+110 =hour
+110=minute (no seconds here)
+
+
+MEM_reg diverse instellingen
+bit0 autostart timer, true on (default) timer start bij power-up
+
+common register GPIOR0
+bit0 clock runs(true) on hold(false)
