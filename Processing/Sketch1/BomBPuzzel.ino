@@ -21,6 +21,7 @@ CRGB pix[24];
 
 byte MEM_reg;
 byte shiftbyte[4]; //0=game2 1=game1 2=segments 3=digits
+byte digit[6];
 byte segmentcount;
 byte bytecount;
 byte bitcount;
@@ -29,8 +30,6 @@ byte hourcurrent;
 byte minutecurrent;
 byte minutetimer;
 byte secondcurrent;
-
-
 //temps
 unsigned long tijd;
 byte pixcount;
@@ -51,6 +50,10 @@ void setup() {
 
 	MEM_read();
 	TIME_init();
+
+	//temps
+	//shiftbyte[3] = B11111011;
+
 }
 void loop() {
 	SFT_exe();
@@ -65,7 +68,7 @@ void MEM_read() {
 	MEM_reg = EEPROM.read(100);
 	if (MEM_reg & (1 << 0))GPIOR0 |= (1 << 0); //start timer on powerup
 	hourtimer = EEPROM.read(110);
-	if (hourtimer > 23)hourtimer = 1;
+	if (hourtimer > 23)hourtimer = 24;
 	minutetimer = EEPROM.read(111);
 	if (minutetimer > 59) minutetimer = 0;
 }
@@ -85,95 +88,82 @@ void TIME_clock() {
 				hourcurrent = 24;
 			}
 			hourcurrent--;
+			TIME_segments(2);
 		}
 		minutecurrent--;
+		TIME_segments(1);
 	}
 	secondcurrent--;
-
+	TIME_segments(0);
 
 	Serial.print(hourcurrent); Serial.print(":"); Serial.print(minutecurrent);
 	Serial.print(":"); Serial.println(secondcurrent);
 }
-byte segments(boolean digit) {
-	byte segment;
-	byte value = 0; byte dgt1 = 0; byte dgt2 = 0;
-	//calc value of the 6 seperate 7 segments
-	//seconds
-	value = secondcurrent;
+void TIME_segments(byte ts) {
+	byte value; byte tens = 0;
+	switch (ts) {
+	case 0: //seconds
+		value = secondcurrent;
+		break;
+	case 1://minutes
+		value = minutecurrent;
+		break;
+	case 2://hours
+		value = hourcurrent;
+		break;
+	}
 	while (value > 9) {
-		dgt2++;
+		tens++;
 		value = value - 10;
 	}
-	//dgt2 heeft tientallen, dgt1 rest
-	if (digit == true) {
-		segment = sgmnt(dgt2);
-	}
-	else {
-		segment = sgmnt(dgt1);
-	}
-	return segment;
+	digit[0 + ts*2] = segment(value);
+	digit[1 + ts*2] = segment(tens);
 }
-byte sgmnt(byte number) {
+
+byte segment(byte number) {
 	byte result;
 	switch (number) {
 	case 0:
-		//result=
+		result = B11111100;
 		break;
 	case 1:
+		result = B01100000;
 		break;
 	case 2:
+		result = B11011010;
 		break;
 	case 3:
+		result = B11110010;
 		break;
 	case 4:
+		result = B01100110;
 		break;
 	case 5:
+		result = B10110110;
 		break;
 	case 6:
+		result = B10111110;
 		break;
 	case 7:
+		result = B11100000;
 		break;
 	case 8:
+		result = B11111110;
 		break;
 	case 9:
+		result = B11110110;
 		break;
 	}
-
 	return result;
 }
 void FL_exe() {
 	pixcount++;
 	FastLED.clearData();
-
-
 	if (pixcount > aantalpix - 1) pixcount = 0;
 	pix[pixcount].r = random(0, 255);
 	pix[pixcount].g = random(0, 255);
 	pix[pixcount].b = random(0, 255);
 	fl;
-
-	shiftbyte[2] = B11110000;
-	switch (bc) {
-	case 0:
-		shiftbyte[3] = B01111111;
-		break;
-	case 1:
-		shiftbyte[3] = B10111111;
-		break;
-	case 2:
-		shiftbyte[3] = B11011111;
-		break;
-	case 3:
-		shiftbyte[3] = B11101111;
-		break;
-	case 4:
-		shiftbyte[3] = B11110111;
-		break;
-	case 5:
-		shiftbyte[3] = B11111011;
-		break;
-	}
-	bc++; if (bc > 5)bc = 0;
 }
 void SFT_exe() {
 	//shift out continue and reads switches and game 
@@ -190,35 +180,12 @@ void SFT_exe() {
 		if (bytecount > 3) {
 			bytecount = 0;
 			PORTB |= (1 << 1); PINB |= (1 << 1); //make latch puls sipo
-			//shiftbytes klaarmaken voor volgende run
+			//next digit
 			segmentcount++;
 			if (segmentcount > 5)segmentcount = 0;
-			switch (segmentcount) {
-			case 0:
-				shiftbyte[3] = B01111111;
-				shiftbyte[2] = segments(false);
-				break;
-			case 1:
-				shiftbyte[3] = B10111111;
-				shiftbyte[2] = segments(true);
-				break;
-			case 2:
-				shiftbyte[3] = B11011111;
-				shiftbyte[2] = segments(false);
-				break;
-			case 3:
-				shiftbyte[3] = B11101111;
-				shiftbyte[2] = segments(true);
-				break;
-			case 4:
-				shiftbyte[3] = B11110111;
-				shiftbyte[2] = segments(false);
-				break;
-			case 5:
-				shiftbyte[3] = B11111011;
-				shiftbyte[2] = segments(true);
-				break;
-			}
+			shiftbyte[2] = digit[segmentcount];
+			shiftbyte[3] = 0xFF;
+			shiftbyte[3] &= ~(1 << 7-segmentcount);
 		}
 	}
 }
