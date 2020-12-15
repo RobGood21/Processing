@@ -175,9 +175,7 @@ void SHIFT_exe() {
 	//pin10= latch piso (high>low)
 	PORTD &= ~(1 << 6); //clear serial pin
 	if (shiftbyte[bytecount] & (1 << bitcount))PORTD |= (1 << 6); //set serial pin
-
-
-	
+	   	
 
 	//hier lezen shiftout bit
 	switch (bytecount) {
@@ -210,10 +208,9 @@ PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
 			shiftbyte[2] = digit[segmentcount];
 			shiftbyte[3] = 0xFF;
 			shiftbyte[3] &= ~(1 << 7 - segmentcount);
-			//gamebytes			
-			//if (GPIOR0 & (1 << 1)) {
-			shiftbyte[gamebytecount]= shiftbyte[gamebytecount] << 1;
 
+			//gamebytes			
+			shiftbyte[gamebytecount]= shiftbyte[gamebytecount] << 1;
 			if (shiftbyte[gamebytecount] == 0) {
 				gamebytecount++;
 				if (gamebytecount > 1)gamebytecount = 0;
@@ -224,6 +221,20 @@ PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
 	}
 }
 void GAME_read() {
-	Serial.print(gamebyte[0],BIN); Serial.print("  "); Serial.println(gamebyte[1],BIN);
+	byte r[2]; byte d=0;
+	for (byte y = 0; y < 2; y ++) {
+		for (byte i = 0; i < 8; i ++) {
+			if (gamebyte[y] & (1 << i)) {
+				r[d] = (7-i) +(y*8);
+				d++;
+			}
+		}
+	}
+
+	if (d == 2) { //verbinding gevonden
+		Serial.print("verbinding tussen: "); Serial.print(r[0]); Serial.print(" en: "); Serial.println(r[1]);
+	}
+
+	//Serial.print(gamebyte[0]); Serial.print("  "); Serial.println(gamebyte[1]);
 	gamebyte[0] = 0x00; gamebyte[1] = 0x00;
 }
