@@ -24,9 +24,9 @@ byte shiftbyte[4]; //0=game2 1=game1 2=segments 3=digits
 byte gamebyte[2];
 byte gamebytecount = 0x00;
 byte digit[6];
-byte segmentcount;
-byte bytecount;
-byte bitcount;
+byte segmentcount=0;
+byte bytecount=0;
+byte bitcount=0;
 byte hourtimer;
 byte hourcurrent;
 byte minutecurrent;
@@ -52,6 +52,8 @@ void setup() {
 
 	MEM_read();
 	TIME_init();
+
+	gamebyte[0] = 0; gamebyte[1] = 0;
 
 	//temps
 	//shiftbyte[3] = B11111011;
@@ -99,8 +101,8 @@ void TIME_clock() {
 	secondcurrent--;
 	TIME_segments(0);
 
-	Serial.print(hourcurrent); Serial.print(":"); Serial.print(minutecurrent);
-	Serial.print(":"); Serial.println(secondcurrent);
+	//Serial.print(hourcurrent); Serial.print(":"); Serial.print(minutecurrent);
+	//Serial.print(":"); Serial.println(secondcurrent);
 }
 void TIME_segments(byte ts) {
 	byte value; byte tens = 0;
@@ -173,11 +175,22 @@ void SHIFT_exe() {
 	//pin10= latch piso (high>low)
 	PORTD &= ~(1 << 6); //clear serial pin
 	if (shiftbyte[bytecount] & (1 << bitcount))PORTD |= (1 << 6); //set serial pin
-	PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
-	//hier lezen shiftout bit
-	if (bytecount < 2) { //only first two shifted bytes
 
+
+	
+
+	//hier lezen shiftout bit
+	switch (bytecount) {
+	case 0:
+		if (PIND & (1 << 7)) gamebyte[1] |= (1 << bitcount);	
+		break;
+	case 1:
+		if (PIND & (1 << 7)) gamebyte[0] |= (1 << bitcount);
+		break;
 	}
+
+PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
+
 	bitcount++;
 	if (bitcount > 7) {
 		bitcount = 0;
@@ -186,9 +199,11 @@ void SHIFT_exe() {
 		
 		switch (bytecount) {
 		case 4: //alle bytes verzonden
+			GAME_read();
 			bytecount = 0;
 			PORTB |= (1 << 1); PINB |= (1 << 1); //make latch puls sipo pin 9
 			PORTB &= ~(1 << 2); PINB |= (1 << 2); //latch puls piso pin 10
+
 			//next digit
 			segmentcount++;
 			if (segmentcount > 5)segmentcount = 0;
@@ -198,6 +213,7 @@ void SHIFT_exe() {
 			//gamebytes			
 			//if (GPIOR0 & (1 << 1)) {
 			shiftbyte[gamebytecount]= shiftbyte[gamebytecount] << 1;
+
 			if (shiftbyte[gamebytecount] == 0) {
 				gamebytecount++;
 				if (gamebytecount > 1)gamebytecount = 0;
@@ -205,6 +221,9 @@ void SHIFT_exe() {
 			}
 			break;
 		}
-
 	}
+}
+void GAME_read() {
+	Serial.print(gamebyte[0],BIN); Serial.print("  "); Serial.println(gamebyte[1],BIN);
+	gamebyte[0] = 0x00; gamebyte[1] = 0x00;
 }
