@@ -21,6 +21,8 @@ CRGB pix[24];
 
 byte MEM_reg;
 byte shiftbyte[4]; //0=game2 1=game1 2=segments 3=digits
+byte gamebyte[2];
+byte gamebytecount = 0x00;
 byte digit[6];
 byte segmentcount;
 byte bytecount;
@@ -34,7 +36,7 @@ byte secondcurrent;
 unsigned long tijd;
 byte pixcount;
 byte bc;
-
+byte vertragen;
 
 void setup() {
 	Serial.begin(9600);
@@ -45,7 +47,7 @@ void setup() {
 	DDRB |= (7 << 0); //pin8;9;10 as output SRCLK RCLK SH/LD
 	PORTB |= (1 << 2); //pin 10 high SH/LD
 	DDRD |= (1 << 6); //pin 6 output Serial out
-	DDRD &= ~(1 << 7); //pin7 as input Serial in
+	DDRD &=~(1 << 7); //pin7 as input Serial in
 	PORTD |= (1 << 7); //build-in pullup to pin 7 
 
 	MEM_read();
@@ -56,14 +58,15 @@ void setup() {
 
 }
 void loop() {
-	SFT_exe();
+	//vertragen++;
+	if (vertragen == 0) SHIFT_exe();
+
 	if (millis() - tijd > 999) { //1 seconde? calibratie maken in instellingen?
 		tijd = millis();
 		FL_exe();
 		if (GPIOR0 & (1 << 0))TIME_clock();
 	}
 }
-
 void MEM_read() {
 	MEM_reg = EEPROM.read(100);
 	if (MEM_reg & (1 << 0))GPIOR0 |= (1 << 0); //start timer on powerup
@@ -116,10 +119,9 @@ void TIME_segments(byte ts) {
 		tens++;
 		value = value - 10;
 	}
-	digit[0 + ts*2] = segment(value);
-	digit[1 + ts*2] = segment(tens);
+	digit[0 + ts * 2] = segment(value);
+	digit[1 + ts * 2] = segment(tens);
 }
-
 byte segment(byte number) {
 	byte result;
 	switch (number) {
@@ -165,7 +167,7 @@ void FL_exe() {
 	pix[pixcount].b = random(0, 255);
 	fl;
 }
-void SFT_exe() {
+void SHIFT_exe() {
 	//shift out continue and reads switches and game 
 	//port D6 = serial out, port B0 pin 8 = shiftpuls port B1 Pin9 = latch sipo
 	//pin10= latch piso (high>low)
@@ -173,19 +175,36 @@ void SFT_exe() {
 	if (shiftbyte[bytecount] & (1 << bitcount))PORTD |= (1 << 6); //set serial pin
 	PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
 	//hier lezen shiftout bit
+	if (bytecount < 2) { //only first two shifted bytes
+
+	}
 	bitcount++;
 	if (bitcount > 7) {
 		bitcount = 0;
 		bytecount++;
-		if (bytecount > 3) {
+		
+		
+		switch (bytecount) {
+		case 4: //alle bytes verzonden
 			bytecount = 0;
-			PORTB |= (1 << 1); PINB |= (1 << 1); //make latch puls sipo
+			PORTB |= (1 << 1); PINB |= (1 << 1); //make latch puls sipo pin 9
+			PORTB &= ~(1 << 2); PINB |= (1 << 2); //latch puls piso pin 10
 			//next digit
 			segmentcount++;
 			if (segmentcount > 5)segmentcount = 0;
 			shiftbyte[2] = digit[segmentcount];
 			shiftbyte[3] = 0xFF;
-			shiftbyte[3] &= ~(1 << 7-segmentcount);
+			shiftbyte[3] &= ~(1 << 7 - segmentcount);
+			//gamebytes			
+			//if (GPIOR0 & (1 << 1)) {
+			shiftbyte[gamebytecount]= shiftbyte[gamebytecount] << 1;
+			if (shiftbyte[gamebytecount] == 0) {
+				gamebytecount++;
+				if (gamebytecount > 1)gamebytecount = 0;
+				shiftbyte[gamebytecount] = 1;
+			}
+			break;
 		}
+
 	}
 }

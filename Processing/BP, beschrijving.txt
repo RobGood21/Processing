@@ -16,3 +16,4 @@ bit0 autostart timer, true on (default) timer start bij power-up
 
 common register GPIOR0
 bit0 clock runs(true) on hold(false)
+bit1 Gamebyte 1(false or 2 true) 1 entree in 1 cycle
