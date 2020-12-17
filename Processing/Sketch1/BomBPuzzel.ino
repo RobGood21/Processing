@@ -19,24 +19,45 @@
 byte aantalpix = 24;
 CRGB pix[24];
 
+struct connect
+{
+	byte first = 0;
+	byte second = 0;
+	boolean cnt = false;
+}; connect con[8];
+
+struct colors
+{
+	byte red;
+	byte green;
+	byte blue;
+}; colors color[8];
+
+
+byte pixcolor[16]; //witch color assigned to pix
 byte MEM_reg;
 byte shiftbyte[4]; //0=game2 1=game1 2=segments 3=digits
 byte gamebyte[2];
 byte gamebytecount = 0x00;
+byte gamebit = 0;
 byte digit[6];
-byte segmentcount=0;
-byte bytecount=0;
-byte bitcount=0;
+byte segmentcount = 0;
+byte bytecount = 0;
+byte bitcount = 0;
 byte hourtimer;
 byte hourcurrent;
 byte minutecurrent;
 byte minutetimer;
 byte secondcurrent;
+byte slow;
+byte SW_status = 0xFF;
+
+
 //temps
 unsigned long tijd;
 byte pixcount;
 byte bc;
-byte vertragen;
+
 
 void setup() {
 	Serial.begin(9600);
@@ -47,12 +68,15 @@ void setup() {
 	DDRB |= (7 << 0); //pin8;9;10 as output SRCLK RCLK SH/LD
 	PORTB |= (1 << 2); //pin 10 high SH/LD
 	DDRD |= (1 << 6); //pin 6 output Serial out
-	DDRD &=~(1 << 7); //pin7 as input Serial in
+	DDRD &= ~(1 << 7); //pin7 as input Serial in
 	PORTD |= (1 << 7); //build-in pullup to pin 7 
+	PORTC |= (63 << 0); //pull ups to pins A0~A5
+
+
 
 	MEM_read();
 	TIME_init();
-
+	COLOR_set();
 	gamebyte[0] = 0; gamebyte[1] = 0;
 
 	//temps
@@ -60,12 +84,12 @@ void setup() {
 
 }
 void loop() {
-	//vertragen++;
-	if (vertragen == 0) SHIFT_exe();
+	slow++;
+	if (slow == 0) SW_exe();
+	SHIFT_exe();
 
 	if (millis() - tijd > 999) { //1 seconde? calibratie maken in instellingen?
 		tijd = millis();
-		FL_exe();
 		if (GPIOR0 & (1 << 0))TIME_clock();
 	}
 }
@@ -76,6 +100,26 @@ void MEM_read() {
 	if (hourtimer > 23)hourtimer = 24;
 	minutetimer = EEPROM.read(111);
 	if (minutetimer > 59) minutetimer = 0;
+}
+void COLOR_set() {
+	//color 0 Crimson red 0xDC143C
+	color[0].red = 0xDC;
+	color[0].green = 0x14;
+	color[0].blue = 0x3C;
+	//color 1 CornflowerBlue	0x6495ED
+	color[1].red = 0x64;
+	color[1].green = 0x95;
+	color[1].blue = 0xED;
+	//color 2 DarkOliveGreen	0x556B2F
+	color[2].red = 0x55;
+	color[2].green = 0x6B;
+	color[2].blue = 0x2F;
+	//color 3 DarkOrange	0xFF8C00
+	color[3].red = 0xFF;
+	color[3].green = 0x8C;
+	color[3].blue = 0x00;
+
+
 }
 void TIME_init() {
 	//sets time of the timer 
@@ -160,41 +204,32 @@ byte segment(byte number) {
 	}
 	return result;
 }
-void FL_exe() {
-	pixcount++;
-	FastLED.clearData();
-	if (pixcount > aantalpix - 1) pixcount = 0;
-	pix[pixcount].r = random(0, 255);
-	pix[pixcount].g = random(0, 255);
-	pix[pixcount].b = random(0, 255);
-	fl;
-}
 void SHIFT_exe() {
 	//shift out continue and reads switches and game 
 	//port D6 = serial out, port B0 pin 8 = shiftpuls port B1 Pin9 = latch sipo
 	//pin10= latch piso (high>low)
 	PORTD &= ~(1 << 6); //clear serial pin
 	if (shiftbyte[bytecount] & (1 << bitcount))PORTD |= (1 << 6); //set serial pin
-	   	
+
 
 	//hier lezen shiftout bit
 	switch (bytecount) {
 	case 0:
-		if (PIND & (1 << 7)) gamebyte[1] |= (1 << bitcount);	
+		if (PIND & (1 << 7)) gamebyte[1] |= (1 << bitcount);
 		break;
 	case 1:
 		if (PIND & (1 << 7)) gamebyte[0] |= (1 << bitcount);
 		break;
 	}
 
-PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
+	PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
 
 	bitcount++;
 	if (bitcount > 7) {
 		bitcount = 0;
 		bytecount++;
-		
-		
+
+
 		switch (bytecount) {
 		case 4: //alle bytes verzonden
 			GAME_read();
@@ -210,10 +245,14 @@ PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
 			shiftbyte[3] &= ~(1 << 7 - segmentcount);
 
 			//gamebytes			
-			shiftbyte[gamebytecount]= shiftbyte[gamebytecount] << 1;
+			gamebit--;
+			shiftbyte[gamebytecount] = shiftbyte[gamebytecount] << 1;
 			if (shiftbyte[gamebytecount] == 0) {
 				gamebytecount++;
-				if (gamebytecount > 1)gamebytecount = 0;
+				if (gamebytecount > 1) {
+					gamebytecount = 0;
+					gamebit = 16;
+				}
 				shiftbyte[gamebytecount] = 1;
 			}
 			break;
@@ -221,20 +260,107 @@ PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
 	}
 }
 void GAME_read() {
-	byte r[2]; byte d=0;
-	for (byte y = 0; y < 2; y ++) {
-		for (byte i = 0; i < 8; i ++) {
+	//Serial.print("gamebit: "); Serial.println(gamebit);
+	//gamebytecount
+	boolean nw = false;
+	byte r[2]; byte d = 0;
+	for (byte y = 0; y < 2; y++) {
+		for (byte i = 0; i < 8; i++) {
 			if (gamebyte[y] & (1 << i)) {
-				r[d] = (7-i) +(y*8);
+				r[d] = (7 - i) + (y * 8);
 				d++;
 			}
 		}
 	}
-
 	if (d == 2) { //verbinding gevonden
-		Serial.print("verbinding tussen: "); Serial.print(r[0]); Serial.print(" en: "); Serial.println(r[1]);
-	}
 
+		//Serial.print("gamebit: "); Serial.println(gamebit);
+		if (r[0] == gamebit) {
+			//Serial.println("yes, r[0]");
+		}
+		else if (r[1] == gamebit) {
+			//Serial.println("no, r[1]");
+		}
+		else {
+			//Serial.println("no match");
+		}
+
+		GPIOR0 |= (1 << 2);
+		for (byte i = 0; i < 8; i++) { //check if connection exists met r[0]
+			if (r[0] == con[i].first) {
+				con[i].second = r[1];
+				con[i].cnt = true;
+				GPIOR0 &= ~(1 << 2);
+				i = 10;
+			}
+		}
+
+		if (GPIOR0 & (1 << 2)) { //new connection
+			for (byte i = 0; i < 8; i++) {
+				if (con[i].cnt == false) {
+					con[i].first = r[0];
+					con[i].second = r[1];
+					con[i].cnt = true;
+					i = 10;
+				}
+			}
+		}
+		//Serial.print("verbinding tussen: "); Serial.print(r[0]); Serial.print(" en: "); Serial.println(r[1]);
+	}
 	//Serial.print(gamebyte[0]); Serial.print("  "); Serial.println(gamebyte[1]);
 	gamebyte[0] = 0x00; gamebyte[1] = 0x00;
+	//execute and clear results
+	//Serial.println(gamebit);
+	if (gamebit == 16) {
+		if (GPIOR0 & (1 << 3)) { //game setup
+
+		}
+		else { //game running
+			FastLED.clearData();
+			for (byte i = 0; i < 8; i++) {
+				if (con[i].cnt == true) {
+					pix[con[i].first + 8] = CRGB(color[0].red, color[0].green,color[0].blue);
+					pix[con[i].second + 8] = CRGB(color[3].red, color[3].green, color[3].blue);
+					//Serial.print("*");
+				}
+				con[i].first = 0;
+				con[i].second = 0;
+				con[i].cnt = false;
+			}
+			fl;
+		}
+	}
+}
+
+void GAME_start() {
+	//makes new game
+
+}
+void SW_exe() {
+	byte nss = PINC;
+	byte changed;
+	changed = nss ^ SW_status;
+	if (changed > 0) {
+		for (byte i = 0; i < 6; i++) {
+			if (changed & (1 << i)) {
+				if (nss & (1 << i)) {
+					SW_off(i);
+				}
+				else {
+					SW_on(i);
+				}
+			}
+		}
+	}
+	SW_status = nss;
+}
+void SW_on(byte sw) {
+	Serial.print("Aan: "); Serial.println(sw);
+}
+void SW_off(byte sw) {
+	switch (sw) {
+	case 4:
+		GPIOR0 |= (1 << 3); // start new game setup
+		break;
+	}
 }
