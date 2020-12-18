@@ -31,6 +31,7 @@ struct colors
 	byte red;
 	byte green;
 	byte blue;
+	boolean free = false;
 }; colors color[8];
 
 
@@ -51,7 +52,7 @@ byte minutetimer;
 byte secondcurrent;
 byte slow;
 byte SW_status = 0xFF;
-
+byte rndm[16];
 
 //temps
 unsigned long tijd;
@@ -71,8 +72,6 @@ void setup() {
 	DDRD &= ~(1 << 7); //pin7 as input Serial in
 	PORTD |= (1 << 7); //build-in pullup to pin 7 
 	PORTC |= (63 << 0); //pull ups to pins A0~A5
-
-
 
 	MEM_read();
 	TIME_init();
@@ -102,23 +101,38 @@ void MEM_read() {
 	if (minutetimer > 59) minutetimer = 0;
 }
 void COLOR_set() {
-	//color 0 Crimson red 0xDC143C
-	color[0].red = 0xDC;
-	color[0].green = 0x14;
-	color[0].blue = 0x3C;
-	//color 1 CornflowerBlue	0x6495ED
-	color[1].red = 0x64;
-	color[1].green = 0x95;
-	color[1].blue = 0xED;
-	//color 2 DarkOliveGreen	0x556B2F
-	color[2].red = 0x55;
-	color[2].green = 0x6B;
-	color[2].blue = 0x2F;
-	//color 3 DarkOrange	0xFF8C00
+	//color 0 Rood
+	color[0].red = 0xFF;
+	color[0].green = 0x10;
+	color[0].blue = 0x10;
+	//color 1 Blauw
+	color[1].red = 0x10;
+	color[1].green = 0x10;
+	color[1].blue = 0xFF;
+	//color 2 Groen
+	color[2].red = 0x10;
+	color[2].green = 0xFF;
+	color[2].blue = 0x10;
+	//color 3 Oranje
 	color[3].red = 0xFF;
-	color[3].green = 0x8C;
+	color[3].green = 0x60;
 	color[3].blue = 0x00;
-
+	//color 4 Paars
+	color[4].red = 0xFF;
+	color[4].green = 0x00;
+	color[4].blue = 0xFF;
+	//color 5 equal 
+	color[5].red = 0x99;
+	color[5].green = 0x30;
+	color[5].blue = 0x40;
+	//color 6 equal blue
+	color[6].red = 0x30;
+	color[6].green = 0x30;
+	color[6].blue = 0xAA;
+	//color 7 Yellow
+	color[7].red = 0xAA;
+	color[7].green = 0x99;
+	color[7].blue = 0x00;
 
 }
 void TIME_init() {
@@ -263,6 +277,7 @@ void GAME_read() {
 	//Serial.print("gamebit: "); Serial.println(gamebit);
 	//gamebytecount
 	boolean nw = false;
+	byte px1; byte px2;
 	byte r[2]; byte d = 0;
 	for (byte y = 0; y < 2; y++) {
 		for (byte i = 0; i < 8; i++) {
@@ -313,14 +328,16 @@ void GAME_read() {
 	//Serial.println(gamebit);
 	if (gamebit == 16) {
 		if (GPIOR0 & (1 << 3)) { //game setup
-
+			GAME_start();
 		}
 		else { //game running
 			FastLED.clearData();
 			for (byte i = 0; i < 8; i++) {
+				px1 = con[i].first; px2 = con[i].second;
+
 				if (con[i].cnt == true) {
-					pix[con[i].first + 8] = CRGB(color[0].red, color[0].green,color[0].blue);
-					pix[con[i].second + 8] = CRGB(color[3].red, color[3].green, color[3].blue);
+					pix[px1 + 8] = CRGB(color[pixcolor[px1]].red, color[pixcolor[px1]].green, color[pixcolor[px1]].blue);
+					pix[px2 + 8] = CRGB(color[pixcolor[px2]].red, color[pixcolor[px2]].green, color[pixcolor[px2]].blue);
 					//Serial.print("*");
 				}
 				con[i].first = 0;
@@ -333,8 +350,51 @@ void GAME_read() {
 }
 
 void GAME_start() {
+	byte num1; byte num2; byte val;
+	Serial.println("game start");
 	//makes new game
+	//clear all assigned colors
+	for (byte i = 0; i < 16; i++) {
+		pixcolor[i] = 0xFF;
+	}
+	//assign random colors to pix
+	for (byte i = 0; i < 16; i++) {
+		rndm[i] = i;
+		Serial.print(rndm[i]); Serial.print("  ");
+	}
+	Serial.println("");
+	for (byte i = 0; i < 100; i++) {
+		num1 = random(0, 16);
+		num2 = random(0, 16);
+		val = rndm[num1];
+		rndm[num1] = rndm[num2];
+		rndm[num2] = val;
+	}
+	for (byte i = 0; i < 16; i++) {
+		Serial.print(rndm[i]); Serial.print("  ");
+	}
+	Serial.println("");
 
+	for (byte v = 0; v < 8; v++) {
+		for (byte i = 0; i < 2; i++) {
+			pixcolor[rndm[v + (i * 8)]] = v;
+		}
+	}
+
+
+
+
+	for (byte i = 0; i < 16; i++) {
+		Serial.print(pixcolor[i]); Serial.print(" ");
+
+
+		pix[i + 8] = CRGB(color[pixcolor[i]].red, color[pixcolor[i]].green, color[pixcolor[i]].blue);
+	}
+	Serial.println("");
+
+	fl;
+	//delay(1000);
+	GPIOR0 &= ~(1 << 3);
 }
 void SW_exe() {
 	byte nss = PINC;
@@ -356,6 +416,11 @@ void SW_exe() {
 }
 void SW_on(byte sw) {
 	Serial.print("Aan: "); Serial.println(sw);
+	switch (sw) {
+	case 0:
+		GPIOR0 |= (1 << 3); // start new game setup
+		break;
+	}
 }
 void SW_off(byte sw) {
 	switch (sw) {

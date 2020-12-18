@@ -19,3 +19,4 @@ bit0 clock runs(true) on hold(false)
 bit1 Gamebyte 1(false or 2 true) 1 entree in 1 cycle
 bit2 finding free connection
 bit3 start puzzle true
+bit4
