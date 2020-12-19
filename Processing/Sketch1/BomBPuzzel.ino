@@ -84,8 +84,9 @@ void setup() {
 
 	//auto gamestart, straks naar mem-read
 	//GPIOR0 |= (24 << 0); //auto
-
 	GPIOR0 |= (1 << 4); //man
+
+	GPIOR1 |= (1 << 1); //enable clock show
 
 	FastLED.clearData();
 	fl;
@@ -165,30 +166,44 @@ void TIME_clock() {
 		TIME_segments(1);
 	}
 	secondcurrent--;
-	TIME_segments(0);
 
+	TIME_segments(0);
 	//Serial.print(hourcurrent); Serial.print(":"); Serial.print(minutecurrent);
 	//Serial.print(":"); Serial.println(secondcurrent);
 }
 void TIME_segments(byte ts) {
 	byte value; byte tens = 0;
-	switch (ts) {
-	case 0: //seconds
-		value = secondcurrent;
-		break;
-	case 1://minutes
-		value = minutecurrent;
-		break;
-	case 2://hours
-		value = hourcurrent;
-		break;
+	if (GPIOR1 &(1 << 1)) {//show clock
+
+		switch (ts) {
+		case 0: //seconds
+			value = secondcurrent;
+			break;
+		case 1://minutes
+			value = minutecurrent;
+			break;
+		case 2://hours
+			value = hourcurrent;
+			break;
+		}
+		while (value > 9) {
+			tens++;
+			value = value - 10;
+		}
+
+		digit[0 + ts * 2] = segment(value);
+		digit[1 + ts * 2] = segment(tens);
 	}
-	while (value > 9) {
-		tens++;
-		value = value - 10;
+	GPIOR1 ^= (1 << 0);
+	if (GPIOR1 & (1 << 0)) {
+		digit[2] |= (1 << 0);
+		digit[4] &= ~(1 << 0);
 	}
-	digit[0 + ts * 2] = segment(value);
-	digit[1 + ts * 2] = segment(tens);
+	else {
+		digit[2] &= ~(1 << 0);
+		digit[4] |= (1 << 0);
+	}
+
 }
 byte segment(byte number) {
 	byte result;
@@ -223,8 +238,63 @@ byte segment(byte number) {
 	case 9:
 		result = B11110110;
 		break;
+	case 10: //b
+		result = B00111110;
+		break;
+	case 11: //y
+		result = B01110110;
+		break;
+	case 12: //p
+		result = B11001110;
+		break;
+	case 13: //a
+		result = B11111010;
+		break;
+	case 14://s
+		result = B10110110;
+		break;
+	case 15: //r
+		result = B00001010;
+		break;
+	case 16://e
+		result = B10011110;
+		break;
+	case 17: //o
+		result = B00111010;
+		break;
+	case 18://t
+		result = B00011110;
+		break;
+	
+
 	}
 	return result;
+}
+void TIME_txt(byte txt) {
+	switch (txt) {
+	case 0: //off
+		for (byte i = 0; i < 6; i++) {
+			digit[i] = 0x00;
+		}
+		break;
+	case 1://bypass
+		digit[0] = segment(14);
+		digit[1] = segment(14);
+		digit[2] = segment(13);
+		digit[3] = segment(12);
+		digit[4] = segment(11);
+		digit[5] = segment(10);
+		break;
+	case 2: //reboot
+		digit[0] = segment(18);
+		digit[1] = segment(17);
+		digit[2] = segment(17);
+		digit[3] = segment(10);
+		digit[4] = segment(16);
+		digit[5] = segment(15);
+		break;
+	}
+
 }
 void SHIFT_exe() {
 	//shift out continue and reads switches and game 
@@ -492,7 +562,6 @@ void SW_off(byte sw) {
 }
 void ANIM_exe() {
 	ANIM_count[0] ++; //1 = 20ms
-
 	switch (ANIM_fase) {
 	case 0:
 
@@ -500,7 +569,7 @@ void ANIM_exe() {
 	case 1:
 		FastLED.clear();
 
-		if (ANIM_count[0] > 50) { //timer 0,5 s
+		if (ANIM_count[0] > 20) { //timer 0,4s
 			ANIM_count[0] = 0;
 
 			if (ANIM_count[1] > 7) {
@@ -526,15 +595,22 @@ void ANIM_exe() {
 		ANIM_count[0]++;
 		if (ANIM_count[0] > 200) { //seconde pauze
 			ANIM_count[0] = 0;
-			for (byte i = 0; i < 25; i++) {
-				pix[i] = CRGB(1, 5, 1);
-			}
+			FastLED.clear();
 			fl;
+			GPIOR1 &=~(1 << 1); //disable clock
+			TIME_txt(0); //off
 			ANIM_fase = 12;
 		}
 		break;
 	case 12:
-		//niks doen
+		if (ANIM_count[0] > 150) {
+			ANIM_count[0] = 0;
+			ANIM_count[1]++;
+			TIME_txt(ANIM_count[1]); //1=bypass 2=reboot
+		}
+		break;
+	case 14:
+
 		break;
 	}
 }

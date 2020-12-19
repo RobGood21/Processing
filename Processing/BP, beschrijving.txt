@@ -22,3 +22,7 @@ bit3 start puzzle true > make kleuren
 bit4 start puzzle, toon de kleuren
 bit5 check for connection in start-up
 bit6 eindspel running (true)
+
+common register GPIOR1
+bit0  second point display
+bit1 enable show clock/ timer visible true
