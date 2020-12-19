@@ -34,7 +34,6 @@ struct colors
 	boolean free = false;
 }; colors color[8];
 
-
 byte pixcolor[16]; //witch color assigned to pix
 byte MEM_reg;
 byte shiftbyte[4]; //0=game2 1=game1 2=segments 3=digits
@@ -51,11 +50,15 @@ byte minutecurrent;
 byte minutetimer;
 byte secondcurrent;
 byte slow;
-byte SW_status = 0xFF;
+byte SW_status = B11101111;
 byte rndm[16];
+unsigned long tijd; //timer clock
+unsigned long ANIM_tijd; //timer animaties
+byte ANIM_fase;
+byte ANIM_count[4]; //tellers
 
 //temps
-unsigned long tijd;
+
 byte pixcount;
 byte bc;
 
@@ -77,20 +80,26 @@ void setup() {
 	TIME_init();
 	COLOR_set();
 	gamebyte[0] = 0; gamebyte[1] = 0;
+	ANIM_count[0] = 0; ANIM_count[1] = 0; ANIM_count[2] = 0; ANIM_count[3] = 0;
 
-	//temps
-	//shiftbyte[3] = B11111011;
+	//auto gamestart, straks naar mem-read
+	//GPIOR0 |= (24 << 0); //auto
 
+	GPIOR0 |= (1 << 4); //man
+
+	FastLED.clearData();
+	fl;
 }
 void loop() {
 	slow++;
 	if (slow == 0) SW_exe();
 	SHIFT_exe();
 
-	if (millis() - tijd > 999) { //1 seconde? calibratie maken in instellingen?
+	if (millis() - tijd > 999) { //timer clock
 		tijd = millis();
 		if (GPIOR0 & (1 << 0))TIME_clock();
 	}
+
 }
 void MEM_read() {
 	MEM_reg = EEPROM.read(100);
@@ -225,7 +234,6 @@ void SHIFT_exe() {
 	PORTD &= ~(1 << 6); //clear serial pin
 	if (shiftbyte[bytecount] & (1 << bitcount))PORTD |= (1 << 6); //set serial pin
 
-
 	//hier lezen shiftout bit
 	switch (bytecount) {
 	case 0:
@@ -246,7 +254,13 @@ void SHIFT_exe() {
 
 		switch (bytecount) {
 		case 4: //alle bytes verzonden
+
+			if (millis() - ANIM_tijd > 10) { //timer animaties 10ms
+				ANIM_exe();
+				ANIM_tijd = millis();
+			}
 			GAME_read();
+
 			bytecount = 0;
 			PORTB |= (1 << 1); PINB |= (1 << 1); //make latch puls sipo pin 9
 			PORTB &= ~(1 << 2); PINB |= (1 << 2); //latch puls piso pin 10
@@ -273,12 +287,10 @@ void SHIFT_exe() {
 		}
 	}
 }
-void GAME_read() {
-	//Serial.print("gamebit: "); Serial.println(gamebit);
-	//gamebytecount
+void GAME_read() { //leest de verbindingen, called from anim_exe fase =0 
 	boolean nw = false;
 	byte px1; byte px2;
-	byte r[2]; byte d = 0;
+	byte r[2]; byte d = 0; byte cc = 0;
 	for (byte y = 0; y < 2; y++) {
 		for (byte i = 0; i < 8; i++) {
 			if (gamebyte[y] & (1 << i)) {
@@ -288,7 +300,6 @@ void GAME_read() {
 		}
 	}
 	if (d == 2) { //verbinding gevonden
-
 		//Serial.print("gamebit: "); Serial.println(gamebit);
 		if (r[0] == gamebit) {
 			//Serial.println("yes, r[0]");
@@ -327,15 +338,33 @@ void GAME_read() {
 	//execute and clear results
 	//Serial.println(gamebit);
 	if (gamebit == 16) {
-		if (GPIOR0 & (1 << 3)) { //game setup
+		if (GPIOR0 & (1 << 3)) { //make new kleuren game
 			GAME_start();
 		}
-		else { //game running
-			FastLED.clearData();
+		else {
+			//game running
+			//Serial.print("*");
+			FastLED.clear();
+			//count correct connections
+			for (byte i = 0; i < 8; i++) {
+				if (con[i].cnt) {
+					if (pixcolor[con[i].first] == pixcolor[con[i].second]) {
+						cc++;
+					}
+				}
+				//set pixels 0~7 rood
+				pix[i] = CRGB(200,10,10);
+			}
+
+			for (byte c = 0; c < cc; c++) {
+				pix[c] = CRGB(10,200,10);
+			}
+
+
 			for (byte i = 0; i < 8; i++) {
 				px1 = con[i].first; px2 = con[i].second;
 
-				if (con[i].cnt == true) {
+				if (con[i].cnt == true) {// &GPIOR0 & (1 << 4)) {
 					pix[px1 + 8] = CRGB(color[pixcolor[px1]].red, color[pixcolor[px1]].green, color[pixcolor[px1]].blue);
 					pix[px2 + 8] = CRGB(color[pixcolor[px2]].red, color[pixcolor[px2]].green, color[pixcolor[px2]].blue);
 					//Serial.print("*");
@@ -344,11 +373,10 @@ void GAME_read() {
 				con[i].second = 0;
 				con[i].cnt = false;
 			}
-			fl;
+			if (~GPIOR0 & (1 << 4)) fl;
 		}
 	}
 }
-
 void GAME_start() {
 	byte num1; byte num2; byte val;
 	Serial.println("game start");
@@ -360,9 +388,9 @@ void GAME_start() {
 	//assign random colors to pix
 	for (byte i = 0; i < 16; i++) {
 		rndm[i] = i;
-		Serial.print(rndm[i]); Serial.print("  ");
+		//Serial.print(rndm[i]); Serial.print("  ");
 	}
-	Serial.println("");
+	//Serial.println("");
 	for (byte i = 0; i < 100; i++) {
 		num1 = random(0, 16);
 		num2 = random(0, 16);
@@ -371,9 +399,9 @@ void GAME_start() {
 		rndm[num2] = val;
 	}
 	for (byte i = 0; i < 16; i++) {
-		Serial.print(rndm[i]); Serial.print("  ");
+		//Serial.print(rndm[i]); Serial.print("  ");
 	}
-	Serial.println("");
+	//Serial.println("");
 
 	for (byte v = 0; v < 8; v++) {
 		for (byte i = 0; i < 2; i++) {
@@ -381,20 +409,17 @@ void GAME_start() {
 		}
 	}
 
+	//toon kleuren
+	//for (byte i = 0; i < 16; i++) {
+		//Serial.print(pixcolor[i]); Serial.print(" ");
+	//	pix[i + 8] = CRGB(color[pixcolor[i]].red, color[pixcolor[i]].green, color[pixcolor[i]].blue);
+	//}
 
+	//Serial.println("");
+	GPIOR0 &= ~(1 << 3); //einde game start
 
-
-	for (byte i = 0; i < 16; i++) {
-		Serial.print(pixcolor[i]); Serial.print(" ");
-
-
-		pix[i + 8] = CRGB(color[pixcolor[i]].red, color[pixcolor[i]].green, color[pixcolor[i]].blue);
-	}
-	Serial.println("");
-
-	fl;
-	//delay(1000);
-	GPIOR0 &= ~(1 << 3);
+	// animatie starten
+	ANIM_fase = 1;
 }
 void SW_exe() {
 	byte nss = PINC;
@@ -415,17 +440,60 @@ void SW_exe() {
 	SW_status = nss;
 }
 void SW_on(byte sw) {
-	Serial.print("Aan: "); Serial.println(sw);
+	//Serial.print("Aan: "); Serial.println(sw);
 	switch (sw) {
 	case 0:
 		GPIOR0 |= (1 << 3); // start new game setup
+		GPIOR0 |= (1 << 4);
+		break;
+	case 1:
+		GPIOR0 |=(1 << 4);
+		FastLED.clear();
+		for (byte i; i < 8; i++) {
+			pix[i] = CRGB(color[i].red, color[i].green, color[i].blue);
+		}
+		fl;
 		break;
 	}
 }
 void SW_off(byte sw) {
 	switch (sw) {
 	case 4:
-		GPIOR0 |= (1 << 3); // start new game setup
+		GPIOR0 |= (24 << 0); // start new game setup
+		break;
+	}
+}
+void ANIM_exe() {
+	switch (ANIM_fase) {
+	case 0:
+
+		break;
+	case 1:
+		FastLED.clear();
+		ANIM_count[0]++;
+		if (ANIM_count[0] > 10) { //timer 1 s
+			ANIM_count[0] = 0;
+
+			if (ANIM_count[1] > 7) {
+				ANIM_count[1] = 0;
+				ANIM_fase = 0;
+				GPIOR0 &= ~(1 << 4); //start connection show colors				
+			}
+			else {
+				//Serial.println(ANIM_count[1]);
+				for (byte i = 0; i < 16; i++) {
+
+					if (pixcolor[i] == ANIM_count[1]) {
+						pix[i + 8] = CRGB(color[ANIM_count[1]].red, color[ANIM_count[1]].green, color[ANIM_count[1]].blue);
+						fl;
+					}
+				}
+				ANIM_count[1] ++;
+			}
+		}
+		break;
+
+	case 2:
 		break;
 	}
 }
