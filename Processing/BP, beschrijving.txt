@@ -20,3 +20,5 @@ bit1 Gamebyte 1(false or 2 true) 1 entree in 1 cycle
 bit2 finding free connection
 bit3 start puzzle true > make kleuren
 bit4 start puzzle, toon de kleuren
+bit5 check for connection in start-up
+bit6 eindspel running (true)

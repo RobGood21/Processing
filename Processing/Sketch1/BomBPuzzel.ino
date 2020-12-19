@@ -67,7 +67,7 @@ void setup() {
 	Serial.begin(9600);
 
 	FastLED.addLeds<NEOPIXEL, 4 >(pix, 24);
-	FastLED.setBrightness(50);
+	FastLED.setBrightness(100);
 	//ports
 	DDRB |= (7 << 0); //pin8;9;10 as output SRCLK RCLK SH/LD
 	PORTB |= (1 << 2); //pin 10 high SH/LD
@@ -94,7 +94,6 @@ void loop() {
 	slow++;
 	if (slow == 0) SW_exe();
 	SHIFT_exe();
-
 	if (millis() - tijd > 999) { //timer clock
 		tijd = millis();
 		if (GPIOR0 & (1 << 0))TIME_clock();
@@ -112,36 +111,36 @@ void MEM_read() {
 void COLOR_set() {
 	//color 0 Rood
 	color[0].red = 0xFF;
-	color[0].green = 0x10;
-	color[0].blue = 0x10;
+	color[0].green = 0x00;
+	color[0].blue = 0x00;
 	//color 1 Blauw
-	color[1].red = 0x10;
-	color[1].green = 0x10;
+	color[1].red = 0x00;
+	color[1].green = 0x00;
 	color[1].blue = 0xFF;
 	//color 2 Groen
-	color[2].red = 0x10;
+	color[2].red = 0x00;
 	color[2].green = 0xFF;
-	color[2].blue = 0x10;
-	//color 3 Oranje
+	color[2].blue = 0x00;
+	//color 3 oranje
 	color[3].red = 0xFF;
-	color[3].green = 0x60;
+	color[3].green = 0x35;
 	color[3].blue = 0x00;
-	//color 4 Paars
-	color[4].red = 0xFF;
-	color[4].green = 0x00;
-	color[4].blue = 0xFF;
-	//color 5 equal 
-	color[5].red = 0x99;
-	color[5].green = 0x30;
-	color[5].blue = 0x40;
-	//color 6 equal blue
-	color[6].red = 0x30;
-	color[6].green = 0x30;
+	//color 4 geel
+	color[4].red = 0xE0;
+	color[4].green = 0xD0;
+	color[4].blue = 0x00;
+	//color 5 paars
+	color[5].red = 0xFF;
+	color[5].green = 0x00;
+	color[5].blue = 0xA0;
+	//color 6 
+	color[6].red = 0x70;
+	color[6].green = 0x70;
 	color[6].blue = 0xAA;
-	//color 7 Yellow
-	color[7].red = 0xAA;
-	color[7].green = 0x99;
-	color[7].blue = 0x00;
+	//color 7 mix1
+	color[7].red = 0xF0;
+	color[7].green = 0x25;
+	color[7].blue = 0x30;
 
 }
 void TIME_init() {
@@ -255,11 +254,11 @@ void SHIFT_exe() {
 		switch (bytecount) {
 		case 4: //alle bytes verzonden
 
-			if (millis() - ANIM_tijd > 10) { //timer animaties 10ms
+			if (millis() - ANIM_tijd > 20) { //timer animaties x20ms
 				ANIM_exe();
 				ANIM_tijd = millis();
 			}
-			GAME_read();
+			if (~GPIOR0 & (1 << 6)) GAME_read(); //game stops in end play
 
 			bytecount = 0;
 			PORTB |= (1 << 1); PINB |= (1 << 1); //make latch puls sipo pin 9
@@ -287,10 +286,11 @@ void SHIFT_exe() {
 		}
 	}
 }
-void GAME_read() { //leest de verbindingen, called from anim_exe fase =0 
+void GAME_read() { //leest de verbindingen, called shift_exe
 	boolean nw = false;
 	byte px1; byte px2;
 	byte r[2]; byte d = 0; byte cc = 0;
+
 	for (byte y = 0; y < 2; y++) {
 		for (byte i = 0; i < 8; i++) {
 			if (gamebyte[y] & (1 << i)) {
@@ -350,14 +350,24 @@ void GAME_read() { //leest de verbindingen, called from anim_exe fase =0
 				if (con[i].cnt) {
 					if (pixcolor[con[i].first] == pixcolor[con[i].second]) {
 						cc++;
+						//Serial.println(cc);
 					}
 				}
 				//set pixels 0~7 rood
-				pix[i] = CRGB(200,10,10);
+				pix[i] = CRGB(200, 3, 3);
+			}
+
+			if (GPIOR0 & (1 << 5)) {
+				if (cc > 0) {
+					GPIOR0 |= (1 << 3); //niuew schema maken
+				}
+				else {
+					GPIOR0 &= ~(1 << 5);
+				}
 			}
 
 			for (byte c = 0; c < cc; c++) {
-				pix[c] = CRGB(10,200,10);
+				pix[c] = CRGB(3, 200, 3);
 			}
 
 
@@ -373,13 +383,25 @@ void GAME_read() { //leest de verbindingen, called from anim_exe fase =0
 				con[i].second = 0;
 				con[i].cnt = false;
 			}
-			if (~GPIOR0 & (1 << 4)) fl;
+			//Serial.println(cc);
+
+			if (~GPIOR0 & (1 << 4)) {
+				fl;
+				if (cc > 1)GAME_end();
+			}
 		}
 	}
 }
+void GAME_end() { //color puzzle solved, in 0pbouw knop2 on
+	GPIOR0 |= (1 << 4);
+	GPIOR0 |= (1 << 6); //flag eindspel
+	ANIM_fase = 10;
+	ANIM_count[0] = 0;
+
+}
 void GAME_start() {
 	byte num1; byte num2; byte val;
-	Serial.println("game start");
+	//Serial.println("game start");
 	//makes new game
 	//clear all assigned colors
 	for (byte i = 0; i < 16; i++) {
@@ -417,9 +439,11 @@ void GAME_start() {
 
 	//Serial.println("");
 	GPIOR0 &= ~(1 << 3); //einde game start
+	GPIOR0 |= (1 << 5); //check for connections
 
 	// animatie starten
 	ANIM_fase = 1;
+	ANIM_count[0] = 0;
 }
 void SW_exe() {
 	byte nss = PINC;
@@ -440,19 +464,22 @@ void SW_exe() {
 	SW_status = nss;
 }
 void SW_on(byte sw) {
-	//Serial.print("Aan: "); Serial.println(sw);
+	Serial.print("Aan: "); Serial.println(sw);
 	switch (sw) {
 	case 0:
 		GPIOR0 |= (1 << 3); // start new game setup
 		GPIOR0 |= (1 << 4);
 		break;
 	case 1:
-		GPIOR0 |=(1 << 4);
+		GPIOR0 |= (1 << 4);
 		FastLED.clear();
 		for (byte i; i < 8; i++) {
 			pix[i] = CRGB(color[i].red, color[i].green, color[i].blue);
 		}
 		fl;
+		break;
+	case 2:
+		GAME_end();
 		break;
 	}
 }
@@ -464,14 +491,16 @@ void SW_off(byte sw) {
 	}
 }
 void ANIM_exe() {
+	ANIM_count[0] ++; //1 = 20ms
+
 	switch (ANIM_fase) {
 	case 0:
 
 		break;
 	case 1:
 		FastLED.clear();
-		ANIM_count[0]++;
-		if (ANIM_count[0] > 10) { //timer 1 s
+
+		if (ANIM_count[0] > 50) { //timer 0,5 s
 			ANIM_count[0] = 0;
 
 			if (ANIM_count[1] > 7) {
@@ -493,7 +522,19 @@ void ANIM_exe() {
 		}
 		break;
 
-	case 2:
+	case 10:
+		ANIM_count[0]++;
+		if (ANIM_count[0] > 200) { //seconde pauze
+			ANIM_count[0] = 0;
+			for (byte i = 0; i < 25; i++) {
+				pix[i] = CRGB(1, 5, 1);
+			}
+			fl;
+			ANIM_fase = 12;
+		}
+		break;
+	case 12:
+		//niks doen
 		break;
 	}
 }
