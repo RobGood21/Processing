@@ -56,12 +56,15 @@ byte minutecurrent;
 byte minutetimer;
 byte secondcurrent;
 byte slow;
-byte SW_status = B11101111;
+byte SW_status = B11111111;
 byte rndm[16];
 unsigned long tijd; //timer clock
 unsigned long ANIM_tijd; //timer animaties
 byte ANIM_fase;
 byte ANIM_count[6]; //tellers
+
+byte PRG_mode;
+byte PRG_memsw;
 
 //temps
 
@@ -130,9 +133,9 @@ void MEM_read() {
 	for (byte i = 0; i < 6; i++) {
 		code[i] = EEPROM.read(i + 50);
 		if (code[i] > 9)code[i] = i + 1;
-		Serial.print(code[i]);
+		//Serial.print(code[i]);
 	}
-	Serial.println(" ");
+	//Serial.println(" ");
 
 }
 void COLOR_set() {
@@ -312,6 +315,9 @@ byte segment(byte number) {
 	case 22://d
 		result = B01111010;
 		break;
+	case 23:
+		result = B00000010;
+		break;
 	case 100:
 		result = 0;
 		break;
@@ -366,6 +372,11 @@ void TIME_txt(byte txt) {
 		digit[3] = segment(code[2]);
 		digit[4] = segment(code[1]);
 		digit[5] = segment(code[0]);
+		break;
+	case 6: //start program mode, clear segments 
+		for (byte i = 0; i < 6; i++) {
+			digit[i] = segment(23);
+		}
 		break;
 	}
 
@@ -443,6 +454,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 			}
 		}
 	}
+
 	if (d == 2) { //verbinding gevonden
 		//Serial.print("gamebit: "); Serial.println(gamebit);
 		if (r[0] == gamebit) {
@@ -477,6 +489,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 		}
 		//Serial.print("verbinding tussen: "); Serial.print(r[0]); Serial.print(" en: "); Serial.println(r[1]);
 	}
+
 	//Serial.print(gamebyte[0]); Serial.print("  "); Serial.println(gamebyte[1]);
 	gamebyte[0] = 0x00; gamebyte[1] = 0x00;
 	//execute and clear results
@@ -486,24 +499,20 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 			GAME_start();
 		}
 		else {
-			//game running
-			//Serial.print("*");
 			FastLED.clear();
 			//count correct connections
 			for (byte i = 0; i < 8; i++) {
 				if (con[i].cnt) {
 					if (pixcolor[con[i].first] == pixcolor[con[i].second]) {
-						cc++;
-						//Serial.println(cc);
+						cc++;						
 					}
 				}
 				//set pixels 0~7 rood
 				pix[i] = CRGB(200, 3, 3);
 			}
-
 			if (GPIOR0 & (1 << 5)) {
 				if (cc > 0) {
-					GPIOR0 |= (1 << 3); //niuew schema maken
+					GPIOR0 |= (1 << 3); //nieuw schema maken
 				}
 				else {
 					GPIOR0 &= ~(1 << 5);
@@ -512,6 +521,11 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 
 			for (byte c = 0; c < cc; c++) {
 				pix[c] = CRGB(3, 200, 3);
+			}
+			//hier ergens de schakelfunctie voor programming
+			if (PRG_mode > 0) {
+				if (cc == 0)PRG_memsw = 0;
+				if (cc == 1) PRG_sw();//Serial.println("1 verbinding");
 			}
 
 
@@ -531,7 +545,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 
 			if (~GPIOR0 & (1 << 4)) {
 				fl;
-				if (cc==8) GAME_end();
+				if (cc == 8) GAME_end();
 			}
 		}
 	}
@@ -542,7 +556,7 @@ void GAME_end() { //color puzzle solved, in 0pbouw knop2 on
 		hourcurrent = 0;
 		minutecurrent = 2;// TIME_end / 60;
 		secondcurrent = 30;
-		GPIOR0 |= (1 << 4);		
+		GPIOR0 |= (1 << 4);
 		GPIOR0 |= (1 << 6); //flag eindspel
 		ANIM_fase = 10;
 		resetcounters();
@@ -605,7 +619,6 @@ void GAME_stop() {
 	Serial.println("clock stop");
 	ANIM_fase = 30;
 }
-
 void SW_exe() {
 	byte nss = PINC;
 	byte changed;
@@ -634,7 +647,7 @@ void SW_on(byte sw) {
 	case 1:
 		GPIOR0 |= (1 << 4);
 		FastLED.clear();
-		for (byte i=0; i < 8; i++) {
+		for (byte i = 0; i < 8; i++) {
 			pix[i] = CRGB(color[i].red, color[i].green, color[i].blue);
 		}
 		fl;
@@ -643,16 +656,29 @@ void SW_on(byte sw) {
 	case 2:
 		GAME_end();
 		break;
+	case 3:
+		PRG_start();
+		break;
+	case 5:
+		//PRG_start();
+		break;
 	}
 }
 void SW_off(byte sw) {
+	Serial.print("Uit: "); Serial.println(sw);
 	switch (sw) {
 	case 1:
 		FastLED.clear();
 		fl;
 		break;
+	case 3:
+		PRG_stop();
+		break;
 	case 4:
-		GPIOR0 |= (24 << 0); // start new game setup
+		//GPIOR0 |= (24 << 0); // start new game setup
+		break;
+	case 5:
+		//PRG_stop();
 		break;
 	}
 }
@@ -795,7 +821,7 @@ void ANIM_exe() {
 		break;
 	case 30:
 		if (ANIM_count[0] > 220) {
-		ANIM_fase = 31;
+			ANIM_fase = 31;
 			for (byte i = 0; i < 25; i++) {
 				pix[i] = CRGB(0, 30, 0);
 			}
@@ -808,4 +834,36 @@ void ANIM_exe() {
 		break;
 	}
 
+}
+void PRG_sw() {
+	byte sw;
+	//berekend de gemaakte connectie tbv program
+	for (byte i = 0; i < 8; i++) {
+		if (con[i].cnt) {
+			if (con[i].first == 0) {
+				sw = con[i].second;
+			}
+			else if (con[i].second == 0) {
+				sw = con[i].first;
+			}
+		}
+	}
+	if (sw != PRG_memsw) {
+		Serial.print("connect met "); 
+		Serial.println(sw);
+	}
+	PRG_memsw = sw;
+}
+void PRG_start() {
+	//enters program mode
+	GPIOR0 &= ~(1 << 0); //disable clock
+	TIME_txt(6); //clear display
+	FastLED.clear();
+	fl;
+	PRG_mode = 1;
+}
+void PRG_stop() {
+	//stops program mode 
+	GPIOR0 |= (1 << 0); //enable clock
+	PRG_mode = 0;
 }
