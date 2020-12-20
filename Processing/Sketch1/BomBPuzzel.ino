@@ -34,6 +34,11 @@ struct colors
 	boolean free = false;
 }; colors color[8];
 
+unsigned int TIME_current;
+unsigned int TIME_game;
+unsigned int TIME_act;
+unsigned int TIME_end;
+
 byte code[6]; //code to exit escaperoom
 byte pixcolor[16]; //witch color assigned to pix
 byte MEM_reg;
@@ -81,17 +86,15 @@ void setup() {
 	TIME_init();
 	COLOR_set();
 	gamebyte[0] = 0; gamebyte[1] = 0;
-	ANIM_count[0] = 0; ANIM_count[1] = 0; ANIM_count[2] = 0; ANIM_count[3] = 0;
+	resetcounters();
 
 	//auto gamestart, straks naar mem-read
-	
-
 
 	//GPIOR0 |= (24 << 0); //auto
 	GPIOR0 |= (1 << 4); //man
 
 	GPIOR1 |= (1 << 1); //enable clock show
-
+	TIME_dp(); //display clock
 	FastLED.clearData();
 	fl;
 }
@@ -103,19 +106,29 @@ void loop() {
 		tijd = millis();
 		if (GPIOR0 & (1 << 0))TIME_clock();
 	}
-
 }
 void MEM_read() {
+	byte hr; byte min;
 	MEM_reg = EEPROM.read(100);
-	if (MEM_reg & (1 << 0))GPIOR0 |= (1 << 0); //start timer on powerup
+	if (MEM_reg & (1 << 0))GPIOR0 |= (1 << 0); //start timer on powerup	
+	//instelbare tijden
+	//game
 	hourtimer = EEPROM.read(110);
-	if (hourtimer > 23)hourtimer = 24;
+	if (hourtimer > 12)hourtimer = 1;
 	minutetimer = EEPROM.read(111);
-	if (minutetimer > 59) minutetimer = 0;
-	
-	Serial.print("code: ");
+	if (minutetimer > 59) minutetimer = 1;
+	TIME_game = hourtimer * 360 + minutetimer * 60;  ///dit wordt denk ik niet gebruikt....?
+	//activate
+	min = EEPROM.read(111);
+	if (min > 59)min = 10;
+	TIME_act = min * 60;
+	//endgame
+	min = EEPROM.read(112);
+	if (min > 59)min = 2;
+	TIME_end = min * 60;
+	//Serial.print("code: ");
 	for (byte i = 0; i < 6; i++) {
-		code[i] = EEPROM.read(i+50);
+		code[i] = EEPROM.read(i + 50);
 		if (code[i] > 9)code[i] = i + 1;
 		Serial.print(code[i]);
 	}
@@ -164,8 +177,8 @@ void TIME_init() {
 	secondcurrent = 0;
 }
 void TIME_clock() {
+
 	if (secondcurrent == 0) {
-		if (hourcurrent + minutecurrent + secondcurrent == 0) GPIOR0 &= ~(1 << 0); //stop timer
 		secondcurrent = 60;
 		if (minutecurrent == 0) {
 			minutecurrent = 60;
@@ -179,15 +192,25 @@ void TIME_clock() {
 		TIME_segments(1);
 	}
 	secondcurrent--;
-
 	TIME_segments(0);
+
+	TIME_current = hourcurrent * 360 + minutecurrent * 60 + secondcurrent;
+	if (TIME_end > TIME_current) GAME_end();  //21-12 dit checken
+
+
+	if (TIME_current == 0)GAME_stop();
+
 	//Serial.print(hourcurrent); Serial.print(":"); Serial.print(minutecurrent);
 	//Serial.print(":"); Serial.println(secondcurrent);
+}
+void TIME_dp() { //displays the timer
+	for (byte i = 0; i < 3; i++) {
+		TIME_segments(i);
+	}
 }
 void TIME_segments(byte ts) {
 	byte value; byte tens = 0;
 	if (GPIOR1 &(1 << 1)) {//show clock
-
 		switch (ts) {
 		case 0: //seconds
 			value = secondcurrent;
@@ -216,7 +239,6 @@ void TIME_segments(byte ts) {
 		digit[2] &= ~(1 << 0);
 		digit[4] |= (1 << 0);
 	}
-
 }
 byte segment(byte number) {
 	byte result;
@@ -321,13 +343,13 @@ void TIME_txt(byte txt) {
 		digit[4] = segment(16);
 		digit[5] = segment(15);
 		break;
-	case 3: //GetOut
-		digit[0] = segment(18);
-		digit[1] = segment(20);
-		digit[2] = segment(0);
-		digit[3] = segment(18);
-		digit[4] = segment(16);
-		digit[5] = segment(19);
+	case 3: //Escape
+		digit[0] = segment(16);
+		digit[1] = segment(12);
+		digit[2] = segment(13);
+		digit[3] = segment(21);
+		digit[4] = segment(14);
+		digit[5] = segment(16);
 		break;
 	case 4://Code
 		digit[0] = segment(100);
@@ -509,17 +531,27 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 
 			if (~GPIOR0 & (1 << 4)) {
 				fl;
-				if (cc > 1)GAME_end();
+				if (cc==8) GAME_end();
 			}
 		}
 	}
 }
 void GAME_end() { //color puzzle solved, in 0pbouw knop2 on
-	GPIOR0 |= (1 << 4);
-	GPIOR0 |= (1 << 6); //flag eindspel
-	ANIM_fase = 10;
-	ANIM_count[0] = 0;
-
+	if (~GPIOR0 & (1 << 6)) { //
+		//set time, no display
+		hourcurrent = 0;
+		minutecurrent = 2;// TIME_end / 60;
+		secondcurrent = 30;
+		GPIOR0 |= (1 << 4);		
+		GPIOR0 |= (1 << 6); //flag eindspel
+		ANIM_fase = 10;
+		resetcounters();
+	}
+}
+void resetcounters() {
+	for (byte i = 0; i < 6; i++) {
+		ANIM_count[i] = 0;
+	}
 }
 void GAME_start() {
 	byte num1; byte num2; byte val;
@@ -567,6 +599,13 @@ void GAME_start() {
 	ANIM_fase = 1;
 	ANIM_count[0] = 0;
 }
+void GAME_stop() {
+	//timer afgelopen op 0
+	GPIOR0 &= ~(1 << 0);
+	Serial.println("clock stop");
+	ANIM_fase = 30;
+}
+
 void SW_exe() {
 	byte nss = PINC;
 	byte changed;
@@ -595,11 +634,12 @@ void SW_on(byte sw) {
 	case 1:
 		GPIOR0 |= (1 << 4);
 		FastLED.clear();
-		for (byte i; i < 8; i++) {
+		for (byte i=0; i < 8; i++) {
 			pix[i] = CRGB(color[i].red, color[i].green, color[i].blue);
 		}
 		fl;
 		break;
+
 	case 2:
 		GAME_end();
 		break;
@@ -607,6 +647,10 @@ void SW_on(byte sw) {
 }
 void SW_off(byte sw) {
 	switch (sw) {
+	case 1:
+		FastLED.clear();
+		fl;
+		break;
 	case 4:
 		GPIOR0 |= (24 << 0); // start new game setup
 		break;
@@ -620,7 +664,6 @@ void ANIM_exe() {
 		break;
 	case 1:
 		FastLED.clear();
-
 		if (ANIM_count[0] > 4) { //timer 4x50ms
 			ANIM_count[0] = 0;
 
@@ -652,7 +695,7 @@ void ANIM_exe() {
 			GPIOR1 &= ~(1 << 1); //disable clock
 			TIME_txt(0); //off
 			ANIM_fase = 12;
-			ANIM_count[4] = 100; //blackout time
+			ANIM_count[4] = 60; //blackout time
 		}
 		break;
 	case 12:
@@ -667,13 +710,13 @@ void ANIM_exe() {
 				ANIM_count[4] = 40; //bypass
 				break;
 			case 2:
-				ANIM_count[4] = 80; //reboot
+				ANIM_count[4] = 65; //reboot
 				break;
 			case 3:
-				ANIM_count[4] = 150; //Getout
+				ANIM_count[4] = 80; //Escape
 				break;
 			case 4:
-				ANIM_count[4] = 50; //Code
+				ANIM_count[4] = 30; //Code
 				FastLED.clear();
 				for (byte i = 0; i < 25; i++) {
 					pix[i] = CRGB(1, 5, 1);
@@ -681,10 +724,12 @@ void ANIM_exe() {
 				fl;
 				break;
 			case 5:
-				ANIM_count[4] = 200; //toon exit code
+				ANIM_count[4] = 60; //toon exit code
 				break;
 			case 6:
-				ANIM_fase = 30; //stop
+				ANIM_fase = 20;
+				ANIM_count[0] = 0;
+				ANIM_count[4] = 5;
 				break;
 			}
 		}
@@ -699,7 +744,7 @@ void ANIM_exe() {
 			fl;
 			break;
 
-		case 3://Getout
+		case 3://EScape
 			ANIM_count[3] ++;
 			if (ANIM_count[3] > 3) {
 				ANIM_count[3] = 0;
@@ -716,11 +761,51 @@ void ANIM_exe() {
 
 		case 4: //code
 			break;
+		case 5://display code
+			break;
+		}
+		break;
+
+	case 20: //display clock
+		if (ANIM_count[0] > ANIM_count[4]) {
+			GPIOR1 |= (1 << 1); //enable display clock
+			TIME_dp();
+			ANIM_fase = 21;
+			ANIM_count[4] = 100; //interval
+			ANIM_count[0] = 0;
+			ANIM_count[3]++;
+			for (byte i = 0; i < 25; i++) {
+				pix[i] = CRGB(200, 0, 0);
+			}
+			fl;
+		}
+		break;
+	case 21: //display code
+		if (ANIM_count[0] > ANIM_count[4]) {
+			GPIOR1 &= ~(1 << 1); //disable display clock
+			TIME_txt(5);
+			ANIM_fase = 20;
+			ANIM_count[4] = 15; //interval
+			ANIM_count[0] = 0;
+			for (byte i = 0; i < 25; i++) {
+				pix[i] = CRGB(0, 30, 0);
+			}
+			fl;
+		}
+		break;
+	case 30:
+		if (ANIM_count[0] > 220) {
+		ANIM_fase = 31;
+			for (byte i = 0; i < 25; i++) {
+				pix[i] = CRGB(0, 30, 0);
+			}
+			fl;
+			TIME_txt(5);
 		}
 
 		break;
-	case 30:
-		//do nothing
+	case 31:
 		break;
 	}
+
 }

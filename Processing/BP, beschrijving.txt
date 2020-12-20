@@ -8,8 +8,10 @@ Pin4= Ws2811  DO
 EEPROM
 50~55 (exit)code
 100 Mem_reg
-110 =hour
-110=minute (no seconds here)
+110=hourgame
+110=minutegame (no seconds here
+111=minute activate
+112=minute end game
 
 
 MEM_reg diverse instellingen
@@ -23,6 +25,7 @@ bit3 start puzzle true > make kleuren
 bit4 start puzzle, toon de kleuren
 bit5 check for connection in start-up
 bit6 eindspel running (true)
+bit7 
 
 common register GPIOR1
 bit0  second point display
