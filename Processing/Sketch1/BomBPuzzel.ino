@@ -34,6 +34,7 @@ struct colors
 	boolean free = false;
 }; colors color[8];
 
+byte code[6]; //code to exit escaperoom
 byte pixcolor[16]; //witch color assigned to pix
 byte MEM_reg;
 byte shiftbyte[4]; //0=game2 1=game1 2=segments 3=digits
@@ -55,7 +56,7 @@ byte rndm[16];
 unsigned long tijd; //timer clock
 unsigned long ANIM_tijd; //timer animaties
 byte ANIM_fase;
-byte ANIM_count[4]; //tellers
+byte ANIM_count[6]; //tellers
 
 //temps
 
@@ -83,6 +84,9 @@ void setup() {
 	ANIM_count[0] = 0; ANIM_count[1] = 0; ANIM_count[2] = 0; ANIM_count[3] = 0;
 
 	//auto gamestart, straks naar mem-read
+	
+
+
 	//GPIOR0 |= (24 << 0); //auto
 	GPIOR0 |= (1 << 4); //man
 
@@ -108,6 +112,15 @@ void MEM_read() {
 	if (hourtimer > 23)hourtimer = 24;
 	minutetimer = EEPROM.read(111);
 	if (minutetimer > 59) minutetimer = 0;
+	
+	Serial.print("code: ");
+	for (byte i = 0; i < 6; i++) {
+		code[i] = EEPROM.read(i+50);
+		if (code[i] > 9)code[i] = i + 1;
+		Serial.print(code[i]);
+	}
+	Serial.println(" ");
+
 }
 void COLOR_set() {
 	//color 0 Rood
@@ -265,7 +278,22 @@ byte segment(byte number) {
 	case 18://t
 		result = B00011110;
 		break;
-	
+	case 19: //G
+		result = B10111110;
+		break;
+	case 20: //U
+		result = B01111100;
+		break;
+	case 21: //C
+		result = B10011100;
+		break;
+	case 22://d
+		result = B01111010;
+		break;
+	case 100:
+		result = 0;
+		break;
+
 
 	}
 	return result;
@@ -292,6 +320,30 @@ void TIME_txt(byte txt) {
 		digit[3] = segment(10);
 		digit[4] = segment(16);
 		digit[5] = segment(15);
+		break;
+	case 3: //GetOut
+		digit[0] = segment(18);
+		digit[1] = segment(20);
+		digit[2] = segment(0);
+		digit[3] = segment(18);
+		digit[4] = segment(16);
+		digit[5] = segment(19);
+		break;
+	case 4://Code
+		digit[0] = segment(100);
+		digit[1] = segment(16);
+		digit[2] = segment(22);
+		digit[3] = segment(0);
+		digit[4] = segment(21);
+		digit[5] = segment(100);
+		break;
+	case 5: //exit code
+		digit[0] = segment(code[5]);
+		digit[1] = segment(code[4]);
+		digit[2] = segment(code[3]);
+		digit[3] = segment(code[2]);
+		digit[4] = segment(code[1]);
+		digit[5] = segment(code[0]);
 		break;
 	}
 
@@ -324,7 +376,7 @@ void SHIFT_exe() {
 		switch (bytecount) {
 		case 4: //alle bytes verzonden
 
-			if (millis() - ANIM_tijd > 20) { //timer animaties x20ms
+			if (millis() - ANIM_tijd > 50) { //timer animaties x50ms
 				ANIM_exe();
 				ANIM_tijd = millis();
 			}
@@ -569,7 +621,7 @@ void ANIM_exe() {
 	case 1:
 		FastLED.clear();
 
-		if (ANIM_count[0] > 20) { //timer 0,4s
+		if (ANIM_count[0] > 4) { //timer 4x50ms
 			ANIM_count[0] = 0;
 
 			if (ANIM_count[1] > 7) {
@@ -593,24 +645,82 @@ void ANIM_exe() {
 
 	case 10:
 		ANIM_count[0]++;
-		if (ANIM_count[0] > 200) { //seconde pauze
+		if (ANIM_count[0] > 50) { // pauze na oplossen puzzel
 			ANIM_count[0] = 0;
 			FastLED.clear();
 			fl;
-			GPIOR1 &=~(1 << 1); //disable clock
+			GPIOR1 &= ~(1 << 1); //disable clock
 			TIME_txt(0); //off
 			ANIM_fase = 12;
+			ANIM_count[4] = 100; //blackout time
 		}
 		break;
 	case 12:
-		if (ANIM_count[0] > 150) {
+		if (ANIM_count[0] > ANIM_count[4]) {
 			ANIM_count[0] = 0;
 			ANIM_count[1]++;
-			TIME_txt(ANIM_count[1]); //1=bypass 2=reboot
-		}
-		break;
-	case 14:
+			TIME_txt(ANIM_count[1]); //1=bypass 2=reboot 3=getout 4=code 5=exitcode
 
+			//eenmalig
+			switch (ANIM_count[1]) { //tijden
+			case 1:
+				ANIM_count[4] = 40; //bypass
+				break;
+			case 2:
+				ANIM_count[4] = 80; //reboot
+				break;
+			case 3:
+				ANIM_count[4] = 150; //Getout
+				break;
+			case 4:
+				ANIM_count[4] = 50; //Code
+				FastLED.clear();
+				for (byte i = 0; i < 25; i++) {
+					pix[i] = CRGB(1, 5, 1);
+				}
+				fl;
+				break;
+			case 5:
+				ANIM_count[4] = 200; //toon exit code
+				break;
+			case 6:
+				ANIM_fase = 30; //stop
+				break;
+			}
+		}
+
+		//iedere 50ms
+		switch (ANIM_count[1]) { //leds animation
+		case 2: //reboot
+			FastLED.clear();
+			pix[ANIM_count[3]] = CRGB::Red;
+			ANIM_count[3]++;
+			if (ANIM_count[3] > 24)ANIM_count[3] = 0;
+			fl;
+			break;
+
+		case 3://Getout
+			ANIM_count[3] ++;
+			if (ANIM_count[3] > 3) {
+				ANIM_count[3] = 0;
+				GPIOR1 ^= (1 << 2);
+				FastLED.clear();
+				if (GPIOR1 & (1 << 2)) {
+					for (byte i = 0; i < 25; i++) {
+						pix[i] = CRGB(255, 0, 0);
+					}
+				}
+				fl;
+			}
+			break;
+
+		case 4: //code
+			break;
+		}
+
+		break;
+	case 30:
+		//do nothing
 		break;
 	}
 }

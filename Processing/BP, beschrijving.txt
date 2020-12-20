@@ -6,6 +6,7 @@ Pins
 Pin4= Ws2811  DO
 
 EEPROM
+50~55 (exit)code
 100 Mem_reg
 110 =hour
 110=minute (no seconds here)
@@ -26,3 +27,4 @@ bit6 eindspel running (true)
 common register GPIOR1
 bit0  second point display
 bit1 enable show clock/ timer visible true
+bit2 flashing leds in end animation
