@@ -35,9 +35,11 @@ struct colors
 }; colors color[8];
 
 unsigned int TIME_current;
+byte TIME_gamehr;
+byte TIME_gamemin;
 unsigned int TIME_game;
-unsigned int TIME_act;
-unsigned int TIME_end;
+unsigned int TIME_act; //minutes
+unsigned int TIME_end; //minutes
 
 byte code[6]; //code to exit escaperoom
 byte pixcolor[16]; //witch color assigned to pix
@@ -111,24 +113,32 @@ void loop() {
 	}
 }
 void MEM_read() {
-	byte hr; byte min;
+	byte hr; byte min; byte sec;
 	MEM_reg = EEPROM.read(100);
 	if (MEM_reg & (1 << 0))GPIOR0 |= (1 << 0); //start timer on powerup	
 	//instelbare tijden
 	//game
+
+	//game time
 	hourtimer = EEPROM.read(110);
-	if (hourtimer > 12)hourtimer = 1;
+	if (hourtimer > 9)hourtimer = 1;
+	TIME_gamehr = hourtimer;
 	minutetimer = EEPROM.read(111);
-	if (minutetimer > 59) minutetimer = 1;
+	if (minutetimer > 59) minutetimer = 0;
+	TIME_gamemin = minutetimer;
 	TIME_game = hourtimer * 360 + minutetimer * 60;  ///dit wordt denk ik niet gebruikt....?
 	//activate
 	min = EEPROM.read(111);
 	if (min > 59)min = 10;
 	TIME_act = min * 60;
+
 	//endgame
 	min = EEPROM.read(112);
+	sec = EEPROM.read(113);
 	if (min > 59)min = 2;
-	TIME_end = min * 60;
+	if (sec > 59)sec = 0;
+	TIME_end = (min * 60) + sec;
+
 	//Serial.print("code: ");
 	for (byte i = 0; i < 6; i++) {
 		code[i] = EEPROM.read(i + 50);
@@ -315,7 +325,7 @@ byte segment(byte number) {
 	case 22://d
 		result = B01111010;
 		break;
-	case 23:
+	case 23://-
 		result = B00000010;
 		break;
 	case 100:
@@ -327,6 +337,7 @@ byte segment(byte number) {
 	return result;
 }
 void TIME_txt(byte txt) {
+	byte tens = 0; int units = 0; byte seconds=0;
 	switch (txt) {
 	case 0: //off
 		for (byte i = 0; i < 6; i++) {
@@ -377,6 +388,60 @@ void TIME_txt(byte txt) {
 		for (byte i = 0; i < 6; i++) {
 			digit[i] = segment(23);
 		}
+		break;
+	case 7: //program mode 1 (1t) looptijd spel, main timer bij power up
+		digit[5] = segment(1);
+		digit[4] = segment(18);
+		digit[3] = segment(0);
+		digit[2] = segment(TIME_gamehr);
+		units = TIME_gamemin / 60;
+		while (units > 9) {
+			units = units - 10;
+			tens++;
+		}
+		digit[1] = segment(tens);
+		digit[0] = segment(units);
+		break;
+	case 8: //program mode 2 (2t) activatie tijd, alleen minuten instelbaar
+		digit[5] = segment(2);
+		digit[4] = segment(18);
+		digit[3] = segment(23);
+		digit[2] = segment(23);
+		units = TIME_act/60;
+		while (units > 9) {
+			units = units - 10;
+			tens++;
+		}
+		digit[1] = segment(tens);
+		digit[0] = segment(units);
+
+		break; 
+	case 9: //program mode 3 (3t) eindspeltijd minuten en seconden instelbaar
+		digit[5] = segment(3);
+		digit[4] = segment(18);
+		units = TIME_end;
+		while (units > 59) {
+			tens++;
+			units = units - 60;
+		}
+		//units aantal seconden; tens=aantal minuten
+		seconds = units;
+		units = tens;
+		tens = 0;
+		while (units > 9) {
+			tens++;
+			units = units - 10;
+		}
+		digit[3] = segment(tens);
+		digit[2] = segment(units);
+		units = 0;
+		tens = 0;
+		while (seconds > 9) {
+			tens++;
+			seconds = seconds - 10;
+		}
+		digit[1] = segment(tens);
+		digit[0] = segment(seconds);
 		break;
 	}
 
@@ -504,7 +569,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 			for (byte i = 0; i < 8; i++) {
 				if (con[i].cnt) {
 					if (pixcolor[con[i].first] == pixcolor[con[i].second]) {
-						cc++;						
+						cc++;
 					}
 				}
 				//set pixels 0~7 rood
@@ -616,7 +681,7 @@ void GAME_start() {
 void GAME_stop() {
 	//timer afgelopen op 0
 	GPIOR0 &= ~(1 << 0);
-	Serial.println("clock stop");
+	//Serial.println("clock stop");
 	ANIM_fase = 30;
 }
 void SW_exe() {
@@ -638,7 +703,7 @@ void SW_exe() {
 	SW_status = nss;
 }
 void SW_on(byte sw) {
-	Serial.print("Aan: "); Serial.println(sw);
+	//Serial.print("Aan: "); Serial.println(sw);
 	switch (sw) {
 	case 0:
 		GPIOR0 |= (1 << 3); // start new game setup
@@ -657,7 +722,13 @@ void SW_on(byte sw) {
 		GAME_end();
 		break;
 	case 3:
-		PRG_start();
+		GPIOR0 ^= (1 << 7);
+		if (GPIOR0 & (1 << 7)) {
+			PRG_start();
+		}
+		else {
+			PRG_stop();
+		}
 		break;
 	case 5:
 		//PRG_start();
@@ -665,14 +736,14 @@ void SW_on(byte sw) {
 	}
 }
 void SW_off(byte sw) {
-	Serial.print("Uit: "); Serial.println(sw);
+	//Serial.print("Uit: "); Serial.println(sw);
 	switch (sw) {
 	case 1:
 		FastLED.clear();
 		fl;
 		break;
 	case 3:
-		PRG_stop();
+		//PRG_stop();
 		break;
 	case 4:
 		//GPIOR0 |= (24 << 0); // start new game setup
@@ -849,8 +920,15 @@ void PRG_sw() {
 		}
 	}
 	if (sw != PRG_memsw) {
-		Serial.print("connect met "); 
-		Serial.println(sw);
+		//Serial.print("connect met ");
+		//Serial.println(sw);
+		switch (sw) {
+		case 1:
+			PRG_mode++;
+			if (PRG_mode > 6)PRG_mode = 1;
+			PRG_display();
+			break;
+		}
 	}
 	PRG_memsw = sw;
 }
@@ -861,9 +939,27 @@ void PRG_start() {
 	FastLED.clear();
 	fl;
 	PRG_mode = 1;
+	PRG_display();
 }
 void PRG_stop() {
 	//stops program mode 
 	GPIOR0 |= (1 << 0); //enable clock
 	PRG_mode = 0;
+}
+void PRG_display() {
+	switch (PRG_mode) {
+	case 1://t1 totale speeltijd, starttijd timer bij powerup of na reset
+		TIME_txt(7);
+		break;
+	case 2:
+		TIME_txt(8);
+		break;
+	case 3:
+		TIME_txt(9);
+		break;
+	case 4:
+		break;
+	case 5:
+		break;
+	}
 }
