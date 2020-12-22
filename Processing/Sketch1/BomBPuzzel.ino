@@ -37,9 +37,11 @@ struct colors
 unsigned int TIME_current;
 byte TIME_gamehr;
 byte TIME_gamemin;
+
+//times in seconds
 unsigned int TIME_game;
-unsigned int TIME_act; //minutes
-unsigned int TIME_end; //minutes
+unsigned int TIME_act; 
+unsigned int TIME_end;
 
 byte code[6]; //code to exit escaperoom
 byte pixcolor[16]; //witch color assigned to pix
@@ -78,7 +80,7 @@ void setup() {
 	Serial.begin(9600);
 
 	FastLED.addLeds<NEOPIXEL, 4 >(pix, 24);
-	FastLED.setBrightness(100);
+	FastLED.setBrightness(200);
 	//ports
 	DDRB |= (7 << 0); //pin8;9;10 as output SRCLK RCLK SH/LD
 	PORTB |= (1 << 2); //pin 10 high SH/LD
@@ -112,6 +114,12 @@ void loop() {
 		if (GPIOR0 & (1 << 0))TIME_clock();
 	}
 }
+void FACTORY() {
+	//resets EEPROM
+	for (byte i = 0; i < 255; i++) {
+		EEPROM.update(i, 0xFF);
+	}
+}
 void MEM_read() {
 	byte hr; byte min; byte sec;
 	MEM_reg = EEPROM.read(100);
@@ -121,21 +129,21 @@ void MEM_read() {
 
 	//game time
 	hourtimer = EEPROM.read(110);
-	if (hourtimer > 9)hourtimer = 1;
+	if (hourtimer > 9)hourtimer = 1; //default 1 hour
 	TIME_gamehr = hourtimer;
 	minutetimer = EEPROM.read(111);
 	if (minutetimer > 59) minutetimer = 0;
 	TIME_gamemin = minutetimer;
 	TIME_game = hourtimer * 360 + minutetimer * 60;  ///dit wordt denk ik niet gebruikt....?
-	//activate
-	min = EEPROM.read(111);
-	if (min > 59)min = 10;
-	TIME_act = min * 60;
 
-	//endgame
+	//activate
 	min = EEPROM.read(112);
-	sec = EEPROM.read(113);
-	if (min > 59)min = 2;
+	if (min > 59)min = 10; //default 10minutes
+	TIME_act = min * 60;
+	//endgame
+	min = EEPROM.read(113);
+	sec = EEPROM.read(114);
+	if (min > 59)min = 2; //default 2 minutes
 	if (sec > 59)sec = 0;
 	TIME_end = (min * 60) + sec;
 
@@ -148,6 +156,26 @@ void MEM_read() {
 	//Serial.println(" ");
 
 }
+
+void MEM_write() {
+	int  minutes= 0;; int seconds = 0;
+	//tijden
+	EEPROM.update(110, TIME_gamehr);
+	EEPROM.update(111, TIME_gamemin);
+	EEPROM.update(112, TIME_act/60);
+	seconds = TIME_end;
+	while (seconds > 59) {
+		minutes++;
+		seconds = seconds - 60;
+	}
+	EEPROM.update(113, minutes);
+	EEPROM.update(114, seconds);
+	//deurcode opslaan
+	for (byte i = 0; i < 6; i++) {
+		EEPROM.update(50 + i, code[i]);
+	}
+}
+
 void COLOR_set() {
 	//color 0 Rood
 	color[0].red = 0xFF;
@@ -179,7 +207,7 @@ void COLOR_set() {
 	color[6].blue = 0xAA;
 	//color 7 mix1
 	color[7].red = 0xF0;
-	color[7].green = 0x25;
+	color[7].green = 0x35;
 	color[7].blue = 0x30;
 
 }
@@ -337,7 +365,7 @@ byte segment(byte number) {
 	return result;
 }
 void TIME_txt(byte txt) {
-	byte tens = 0; int units = 0; byte seconds=0;
+	byte tens = 0; int units = 0; byte seconds = 0;
 	switch (txt) {
 	case 0: //off
 		for (byte i = 0; i < 6; i++) {
@@ -394,7 +422,7 @@ void TIME_txt(byte txt) {
 		digit[4] = segment(18);
 		digit[3] = segment(0);
 		digit[2] = segment(TIME_gamehr);
-		units = TIME_gamemin / 60;
+		units = TIME_gamemin; // 60;
 		while (units > 9) {
 			units = units - 10;
 			tens++;
@@ -407,7 +435,7 @@ void TIME_txt(byte txt) {
 		digit[4] = segment(18);
 		digit[3] = segment(23);
 		digit[2] = segment(23);
-		units = TIME_act/60;
+		units = TIME_act / 60;
 		while (units > 9) {
 			units = units - 10;
 			tens++;
@@ -415,7 +443,7 @@ void TIME_txt(byte txt) {
 		digit[1] = segment(tens);
 		digit[0] = segment(units);
 
-		break; 
+		break;
 	case 9: //program mode 3 (3t) eindspeltijd minuten en seconden instelbaar
 		digit[5] = segment(3);
 		digit[4] = segment(18);
@@ -443,7 +471,13 @@ void TIME_txt(byte txt) {
 		digit[1] = segment(tens);
 		digit[0] = segment(seconds);
 		break;
+	case 10: //deurcode
+		for (byte i = 0; i < 6; i++) {
+		digit[i] = segment(code[5-i]);
+		}		
+		break;
 	}
+
 
 }
 void SHIFT_exe() {
@@ -920,44 +954,154 @@ void PRG_sw() {
 		}
 	}
 	if (sw != PRG_memsw) {
+		//hier nog iets maken voor contact dender....
 		//Serial.print("connect met ");
 		//Serial.println(sw);
-		switch (sw) {
-		case 1:
-			PRG_mode++;
-			if (PRG_mode > 6)PRG_mode = 1;
-			PRG_display();
+		PRG_exe(sw);
+		PRG_memsw = sw;
+	}
+}
+void PRG_exe(byte sw) {
+	byte minutes = 0;
+	switch (sw) {
+	case 1: 
+		PRG_mode++;
+		if (PRG_mode > 6)PRG_mode = 1;
+		
+		break;
+	case 4: //2e rij 1e links
+		switch (PRG_mode) {
+		case 4: //deurcode digit 2
+			code[2]++;
+			if (code[2] > 9)code[2] = 0;
 			break;
 		}
+		break;
+
+	case 5: //2e rij 2e links
+		switch (PRG_mode) {
+		case 1: //1t minutes tens
+			TIME_gamehr = TIME_gamehr + 1;
+			if (TIME_gamehr > 9) TIME_gamehr=0;
+			break;
+		case 2: //2t
+			break;
+		case 3: //3t
+			TIME_end = TIME_end + 60;
+			if (TIME_end >= TIME_act)TIME_end = 10; //minimum time
+			break;
+		case 4: //deurcode digit 3
+			code[3]++;
+			if (code[3] > 9)code[3] = 0;
+			break;
+
+		}
+
+		break;
+	case 6: //2e rij derde links (2e rechts)
+		switch (PRG_mode) {
+		case 1: //1t minutes tens
+			TIME_gamemin = TIME_gamemin + 10;
+			if (TIME_gamemin > 59) TIME_gamemin = TIME_gamemin - 60;
+			break;
+		case 2: //2t
+			minutes = TIME_act / 60;
+			minutes = minutes + 10;
+			if (minutes > 59)minutes= minutes-60;
+			TIME_act = minutes * 60;
+			break;
+		case 3: //3t
+			TIME_end = TIME_end + 10;
+			if (TIME_end >= TIME_act)TIME_end = 10; //minimum time
+			break;
+		case 4: //deurcode digit 4
+			code[4]++;
+			if (code[4] > 9)code[4] = 0;
+			break;
+		}
+		break;
+		
+	case 7: //2e rij 1e rechts
+		switch (PRG_mode) {
+		case 1: //1t minutes units
+			TIME_gamemin = TIME_gamemin + 1;
+			if (TIME_gamemin > 59)TIME_gamemin = 0;
+			break;
+		case 2: //2t
+			minutes = TIME_act / 60;
+			minutes=minutes + 1;
+			if (minutes > 59)minutes = 1;
+			TIME_act = minutes * 60;
+			break;
+		case 3: //3t
+			TIME_end++;
+			if (TIME_end >= TIME_act)TIME_end = 10; //minimum time
+			break;
+		case 4: //deurcode digit 6
+			code[5]++;
+			if (code[5] > 9)code[5] = 0;
+			break;
+		}
+		break;
+	case 8: //3e rij rechts
+		switch (PRG_mode) {
+		case 4: //deurcode digit 1
+			code[1]++;
+			if (code[1] > 9)code[1] = 0;
+			break;
+		}
+		break;
+	case 9:// 3e rij 2e van rechts
+		switch (PRG_mode) {
+		case 4: //deurcode digit 0
+			code[0]++;
+			if (code[0] > 9)code[0] = 0;
+			break;
+		}
+		break;
 	}
-	PRG_memsw = sw;
+PRG_display();
 }
 void PRG_start() {
 	//enters program mode
 	GPIOR0 &= ~(1 << 0); //disable clock
 	TIME_txt(6); //clear display
 	FastLED.clear();
+	FastLED.setBrightness(50);
 	fl;
 	PRG_mode = 1;
 	PRG_display();
 }
 void PRG_stop() {
 	//stops program mode 
-	GPIOR0 |= (1 << 0); //enable clock
-	PRG_mode = 0;
+	//GPIOR0 |= (1 << 0); //enable clock
+	//PRG_mode = 0;
+	MEM_write();
+	setup();
+}
+void BAR(byte clr) {
+	for (byte i = 0; i < 8; i++) {
+		pix[i] = CRGB(color[clr].red, color[clr].green, color[clr].blue);
+	}
+	fl;
 }
 void PRG_display() {
 	switch (PRG_mode) {
 	case 1://t1 totale speeltijd, starttijd timer bij powerup of na reset
+		BAR(3);
 		TIME_txt(7);
 		break;
 	case 2:
+		BAR(2);
 		TIME_txt(8);
 		break;
 	case 3:
+		BAR(7);
 		TIME_txt(9);
 		break;
-	case 4:
+	case 4: //deurcode
+		BAR(1);
+		TIME_txt(10);
 		break;
 	case 5:
 		break;

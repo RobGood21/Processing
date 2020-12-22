@@ -9,9 +9,10 @@ EEPROM
 50~55 (exit)code
 100 Mem_reg
 110=hourgame
-110=minutegame (no seconds here
-111=minute activate
-112=minute end game
+111=minutegame (no seconds here
+112=minute activate
+113=minute end game
+114=second end game
 
 
 MEM_reg diverse instellingen
