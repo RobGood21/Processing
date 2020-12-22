@@ -43,6 +43,7 @@ unsigned int TIME_game;
 unsigned int TIME_act; 
 unsigned int TIME_end;
 
+
 byte code[6]; //code to exit escaperoom
 byte pixcolor[16]; //witch color assigned to pix
 byte MEM_reg;
@@ -59,6 +60,7 @@ byte hourcurrent;
 byte minutecurrent;
 byte minutetimer;
 byte secondcurrent;
+byte ANIM_speed;
 byte slow;
 byte SW_status = B11111111;
 byte rndm[16];
@@ -146,6 +148,9 @@ void MEM_read() {
 	if (min > 59)min = 2; //default 2 minutes
 	if (sec > 59)sec = 0;
 	TIME_end = (min * 60) + sec;
+	//animatie snelheid 
+	ANIM_speed = EEPROM.read(115);
+	if (ANIM_speed > 120)ANIM_speed = 60;
 
 	//Serial.print("code: ");
 	for (byte i = 0; i < 6; i++) {
@@ -174,6 +179,8 @@ void MEM_write() {
 	for (byte i = 0; i < 6; i++) {
 		EEPROM.update(50 + i, code[i]);
 	}
+	//animatie snelheid
+	EEPROM.update(115, ANIM_speed);
 }
 
 void COLOR_set() {
@@ -476,9 +483,21 @@ void TIME_txt(byte txt) {
 		digit[i] = segment(code[5-i]);
 		}		
 		break;
+	case 11: //Animatie speed Spd
+		digit[5] = segment(14);
+		digit[4] = segment(12);
+		digit[3] = segment(22);
+		digit[2] = segment(23);
+		seconds = 13 - (ANIM_speed / 10);
+		tens = 0;
+		while (seconds > 9) {
+			tens++;
+			seconds = seconds - 10;
+		}
+		digit[1] = segment(tens);
+		digit[0] = segment(seconds);
+		break;
 	}
-
-
 }
 void SHIFT_exe() {
 	//shift out continue and reads switches and game 
@@ -508,7 +527,7 @@ void SHIFT_exe() {
 		switch (bytecount) {
 		case 4: //alle bytes verzonden
 
-			if (millis() - ANIM_tijd > 50) { //timer animaties x50ms
+			if (millis() - ANIM_tijd > ANIM_speed) { //timer animaties x50ms
 				ANIM_exe();
 				ANIM_tijd = millis();
 			}
@@ -795,7 +814,7 @@ void ANIM_exe() {
 		break;
 	case 1:
 		FastLED.clear();
-		if (ANIM_count[0] > 4) { //timer 4x50ms
+		if (ANIM_count[0] > 10) { //timer 10x20ms
 			ANIM_count[0] = 0;
 
 			if (ANIM_count[1] > 7) {
@@ -971,7 +990,7 @@ void PRG_exe(byte sw) {
 		break;
 	case 4: //2e rij 1e links
 		switch (PRG_mode) {
-		case 4: //deurcode digit 2
+		case 5: //deurcode digit 2
 			code[2]++;
 			if (code[2] > 9)code[2] = 0;
 			break;
@@ -990,7 +1009,7 @@ void PRG_exe(byte sw) {
 			TIME_end = TIME_end + 60;
 			if (TIME_end >= TIME_act)TIME_end = 10; //minimum time
 			break;
-		case 4: //deurcode digit 3
+		case 5: //deurcode digit 3
 			code[3]++;
 			if (code[3] > 9)code[3] = 0;
 			break;
@@ -1014,7 +1033,7 @@ void PRG_exe(byte sw) {
 			TIME_end = TIME_end + 10;
 			if (TIME_end >= TIME_act)TIME_end = 10; //minimum time
 			break;
-		case 4: //deurcode digit 4
+		case 5: //deurcode digit 4
 			code[4]++;
 			if (code[4] > 9)code[4] = 0;
 			break;
@@ -1037,7 +1056,11 @@ void PRG_exe(byte sw) {
 			TIME_end++;
 			if (TIME_end >= TIME_act)TIME_end = 10; //minimum time
 			break;
-		case 4: //deurcode digit 6
+		case 4: //animatie speed
+			ANIM_speed = ANIM_speed-10;
+			if (ANIM_speed < 10) ANIM_speed = 120;
+			break;
+		case 5: //deurcode digit 6
 			code[5]++;
 			if (code[5] > 9)code[5] = 0;
 			break;
@@ -1045,7 +1068,7 @@ void PRG_exe(byte sw) {
 		break;
 	case 8: //3e rij rechts
 		switch (PRG_mode) {
-		case 4: //deurcode digit 1
+		case 5: //deurcode digit 1
 			code[1]++;
 			if (code[1] > 9)code[1] = 0;
 			break;
@@ -1053,7 +1076,7 @@ void PRG_exe(byte sw) {
 		break;
 	case 9:// 3e rij 2e van rechts
 		switch (PRG_mode) {
-		case 4: //deurcode digit 0
+		case 5: //deurcode digit 0
 			code[0]++;
 			if (code[0] > 9)code[0] = 0;
 			break;
@@ -1099,11 +1122,15 @@ void PRG_display() {
 		BAR(7);
 		TIME_txt(9);
 		break;
-	case 4: //deurcode
+	case 4: //animatie speed
+		BAR(6);
+		TIME_txt(11);
+		break;
+	case 5: //deurcode
 		BAR(1);
 		TIME_txt(10);
 		break;
-	case 5:
+	case 6:
 		break;
 	}
 }

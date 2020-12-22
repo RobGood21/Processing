@@ -13,6 +13,7 @@ EEPROM
 112=minute activate
 113=minute end game
 114=second end game
+115=ANIM_speed, snelheid van de animaties
 
 
 MEM_reg diverse instellingen
