@@ -40,10 +40,10 @@ byte TIME_gamemin;
 
 //times in seconds
 unsigned int TIME_game;
-unsigned int TIME_act; 
+unsigned int TIME_act;
 unsigned int TIME_end;
 
-
+byte BEEP_mode;
 byte code[6]; //code to exit escaperoom
 byte pixcolor[16]; //witch color assigned to pix
 byte MEM_reg;
@@ -84,7 +84,8 @@ void setup() {
 	FastLED.addLeds<NEOPIXEL, 4 >(pix, 24);
 	FastLED.setBrightness(200);
 	//ports
-	DDRB |= (7 << 0); //pin8;9;10 as output SRCLK RCLK SH/LD
+	DDRB |= (15 << 0); //pin8;9;10,11 as output SRCLK RCLK SH/LD
+	PORTB &= ~(1 << 3);//pin11, BEEP low. 
 	PORTB |= (1 << 2); //pin 10 high SH/LD
 	DDRD |= (1 << 6); //pin 6 output Serial out
 	DDRD &= ~(1 << 7); //pin7 as input Serial in
@@ -100,7 +101,7 @@ void setup() {
 	//auto gamestart, straks naar mem-read
 
 	//GPIOR0 |= (24 << 0); //auto
-	GPIOR0 |= (1 << 4); //man
+	GPIOR0 |= (1 << 4); //disable color game, switch operation
 
 	GPIOR1 |= (1 << 1); //enable clock show
 	TIME_dp(); //display clock
@@ -136,6 +137,7 @@ void MEM_read() {
 	minutetimer = EEPROM.read(111);
 	if (minutetimer > 59) minutetimer = 0;
 	TIME_gamemin = minutetimer;
+
 	TIME_game = hourtimer * 360 + minutetimer * 60;  ///dit wordt denk ik niet gebruikt....?
 
 	//activate
@@ -163,11 +165,11 @@ void MEM_read() {
 }
 
 void MEM_write() {
-	int  minutes= 0;; int seconds = 0;
+	int  minutes = 0;; int seconds = 0;
 	//tijden
 	EEPROM.update(110, TIME_gamehr);
 	EEPROM.update(111, TIME_gamemin);
-	EEPROM.update(112, TIME_act/60);
+	EEPROM.update(112, TIME_act / 60);
 	seconds = TIME_end;
 	while (seconds > 59) {
 		minutes++;
@@ -243,7 +245,8 @@ void TIME_clock() {
 	TIME_segments(0);
 
 	TIME_current = hourcurrent * 360 + minutecurrent * 60 + secondcurrent;
-	if (TIME_end > TIME_current) GAME_end();  //21-12 dit checken
+
+	if (TIME_end == TIME_current) GAME_end();  //21-12 dit checken, pas op voor dubbel callen als puzzel te laat wordt opgelost??
 
 
 	if (TIME_current == 0)GAME_stop();
@@ -480,8 +483,8 @@ void TIME_txt(byte txt) {
 		break;
 	case 10: //deurcode
 		for (byte i = 0; i < 6; i++) {
-		digit[i] = segment(code[5-i]);
-		}		
+			digit[i] = segment(code[5 - i]);
+		}
 		break;
 	case 11: //Animatie speed Spd
 		digit[5] = segment(14);
@@ -661,7 +664,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 			}
 			//Serial.println(cc);
 
-			if (~GPIOR0 & (1 << 4)) {
+			if (~GPIOR0 & (1 << 4)) { //aonly if color game is enabled
 				fl;
 				if (cc == 8) GAME_end();
 			}
@@ -669,16 +672,30 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 	}
 }
 void GAME_end() { //color puzzle solved, in 0pbouw knop2 on
-	if (~GPIOR0 & (1 << 6)) { //
-		//set time, no display
+	int time; int min = 0;
+	if (GPIOR0 & (1 << 6)) { //	puzzle solved	
+  //set time, no display
 		hourcurrent = 0;
-		minutecurrent = 2;// TIME_end / 60;
-		secondcurrent = 30;
-		GPIOR0 |= (1 << 4);
-		GPIOR0 |= (1 << 6); //flag eindspel
+		time = TIME_end;
+		while (time > 59) {
+			min++;
+			time = time - 60;
+		}
+		minutecurrent = min;// TIME_end / 60;
+		secondcurrent = time;
 		ANIM_fase = 10;
 		resetcounters();
 	}
+	else { //puzzle NOT solved
+		//direct to animation ESCAPE!
+		ANIM_fase = 10;
+		//ANIM_count[0] = 0;
+		//ANIM_count[1] = 10;
+		//ANIM_count[4] = 100;
+		//GPIOR0 |= (1 << 6); //disable game
+		resetcounters();
+	}
+	GPIOR0 |= (1 << 4);//disable color game
 }
 void resetcounters() {
 	for (byte i = 0; i < 6; i++) {
@@ -760,10 +777,10 @@ void SW_on(byte sw) {
 	switch (sw) {
 	case 0:
 		GPIOR0 |= (1 << 3); // start new game setup
-		GPIOR0 |= (1 << 4);
+		GPIOR0 |= (1 << 4); //enable color game
 		break;
 	case 1:
-		GPIOR0 |= (1 << 4);
+		GPIOR0 |= (1 << 4); //enable color game WHY?? here
 		FastLED.clear();
 		for (byte i = 0; i < 8; i++) {
 			pix[i] = CRGB(color[i].red, color[i].green, color[i].blue);
@@ -772,6 +789,7 @@ void SW_on(byte sw) {
 		break;
 
 	case 2:
+		GPIOR0 |= (1 << 6); // set flag game solved
 		GAME_end();
 		break;
 	case 3:
@@ -810,7 +828,6 @@ void ANIM_exe() {
 	ANIM_count[0] ++; //1 = 20ms
 	switch (ANIM_fase) {
 	case 0:
-
 		break;
 	case 1:
 		FastLED.clear();
@@ -820,7 +837,7 @@ void ANIM_exe() {
 			if (ANIM_count[1] > 7) {
 				ANIM_count[1] = 0;
 				ANIM_fase = 0;
-				GPIOR0 &= ~(1 << 4); //start connection show colors				
+				GPIOR0 &= ~(1 << 4); //enable color game		
 			}
 			else {
 				//Serial.println(ANIM_count[1]);
@@ -852,8 +869,11 @@ void ANIM_exe() {
 		if (ANIM_count[0] > ANIM_count[4]) {
 			ANIM_count[0] = 0;
 			ANIM_count[1]++;
-			TIME_txt(ANIM_count[1]); //1=bypass 2=reboot 3=getout 4=code 5=exitcode
-
+			if (~GPIOR0 & (1 << 6)) { //puzzle not solved
+				GPIOR0 |= (1 << 6);
+				ANIM_count[1] = 3;
+			}
+			TIME_txt(ANIM_count[1]); //1=bypass 2=reboot 3=ESCAPE 4=code 5=exitcode
 			//eenmalig
 			switch (ANIM_count[1]) { //tijden
 			case 1:
@@ -983,10 +1003,10 @@ void PRG_sw() {
 void PRG_exe(byte sw) {
 	byte minutes = 0;
 	switch (sw) {
-	case 1: 
+	case 1:
 		PRG_mode++;
 		if (PRG_mode > 6)PRG_mode = 1;
-		
+
 		break;
 	case 4: //2e rij 1e links
 		switch (PRG_mode) {
@@ -1001,7 +1021,7 @@ void PRG_exe(byte sw) {
 		switch (PRG_mode) {
 		case 1: //1t minutes tens
 			TIME_gamehr = TIME_gamehr + 1;
-			if (TIME_gamehr > 9) TIME_gamehr=0;
+			if (TIME_gamehr > 9) TIME_gamehr = 0;
 			break;
 		case 2: //2t
 			break;
@@ -1026,7 +1046,7 @@ void PRG_exe(byte sw) {
 		case 2: //2t
 			minutes = TIME_act / 60;
 			minutes = minutes + 10;
-			if (minutes > 59)minutes= minutes-60;
+			if (minutes > 59)minutes = minutes - 60;
 			TIME_act = minutes * 60;
 			break;
 		case 3: //3t
@@ -1039,7 +1059,7 @@ void PRG_exe(byte sw) {
 			break;
 		}
 		break;
-		
+
 	case 7: //2e rij 1e rechts
 		switch (PRG_mode) {
 		case 1: //1t minutes units
@@ -1048,7 +1068,7 @@ void PRG_exe(byte sw) {
 			break;
 		case 2: //2t
 			minutes = TIME_act / 60;
-			minutes=minutes + 1;
+			minutes = minutes + 1;
 			if (minutes > 59)minutes = 1;
 			TIME_act = minutes * 60;
 			break;
@@ -1057,7 +1077,7 @@ void PRG_exe(byte sw) {
 			if (TIME_end >= TIME_act)TIME_end = 10; //minimum time
 			break;
 		case 4: //animatie speed
-			ANIM_speed = ANIM_speed-10;
+			ANIM_speed = ANIM_speed - 10;
 			if (ANIM_speed < 10) ANIM_speed = 120;
 			break;
 		case 5: //deurcode digit 6
@@ -1083,7 +1103,7 @@ void PRG_exe(byte sw) {
 		}
 		break;
 	}
-PRG_display();
+	PRG_display();
 }
 void PRG_start() {
 	//enters program mode
@@ -1133,4 +1153,7 @@ void PRG_display() {
 	case 6:
 		break;
 	}
+}
+void BEEP_exe() {
+
 }
