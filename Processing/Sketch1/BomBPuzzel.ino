@@ -13,7 +13,7 @@
 #include <FastLed.h>
 
 //declarations
-#define fl FastLED.show();
+#define fl GPIOR1 |=(1<<7); //request Fastled
 
 byte aantalpix = 24;
 CRGB pix[24];
@@ -87,6 +87,7 @@ byte bc;
 
 void setup() {
 	Serial.begin(9600);
+
 	FastLED.addLeds<NEOPIXEL, 4 >(pix, 24);
 	FastLED.setBrightness(200);
 	//ports
@@ -100,12 +101,15 @@ void setup() {
 	PORTC |= (63 << 0); //pull ups to pins A0~A5
 
 	//set interrupt for BEEP
-	TCCR1A = 0x00;
-	TCCR1B = 0x00;
-	TCCR1B |= (1 << 3);
-	TCCR1B |= (4 << 0);//prescaler	
-	OCR1A = 50; //init nodig voor de timer punten
-	OCR1B = 25;
+	TCCR2A = 0x00; // B01000010;
+	TCCR2B = 0x00;
+
+	//TCCR2A |= (1 << 6); //1
+	//TCCR2A |= (1 << 1);
+
+	TCCR2B |= (1 << 2);//prescaler	
+	OCR2A = 50; //init nodig voor de timer punten
+	OCR2B = 25;
 	//TIMSK1 |= (3 << 0);	*****DEZE NIET AANZETTEN***
 
 	MEM_read();
@@ -122,26 +126,36 @@ void setup() {
 	TIME_dp(); //display clock
 
 	FastLED.clearData();
-	fl;
+	FastLED.show();
 }
 void loop() {
-	slow++;
-	if (slow == 0) SW_exe();
 	SHIFT_exe();
 
-	if (GPIOR1 & (1 << 4)) { //Beep on
+	if (GPIOR1 & (1 << 4)) { //Beep on, nog niet gebruikt voor inschakelen piep
 		if (millis() - PIEP_time > 10) { //timer 11 ms
 			PIEP_time = millis();
 			PIEP_on();
 		}
 	}
 
-	if (millis() - tijd > 999) { //timer clock
+	//****
+	slow++;
+	if (millis() - slow > 30) {
+		slow = millis();
+		SW_exe();
+		if (GPIOR1 & (1 << 7)) {
+			FastLED.show();
+			GPIOR1 &= ~(1 << 7);
+		}
+	}
+	//***
+		if (millis() - tijd > 999) { //timer clock
 		tijd = millis();
 
 		if (GPIOR0 & (1 << 0))TIME_clock();
 	}
 
+	//****
 	if (GPIOR1 & (1 << 3))TIK_off();
 
 }
@@ -151,12 +165,12 @@ void FACTORY() {
 		EEPROM.update(i, 0xFF);
 	}
 }
-ISR(TIMER1_COMPA_vect) {
-	PINB |= (1 << 3);
+ISR(TIMER2_COMPA_vect) {
+	//PINB |= (1 << 3);
 	//PORTB |= (1 << 3);
 }
-ISR(TIMER1_COMPB_vect) {
-	PINB |= (1 << 3);
+ISR(TIMER2_COMPB_vect) {
+	//PINB |= (1 << 3);
 	//PORTB &= ~(1 << 3);
 }
 void MEM_read() {
@@ -180,7 +194,7 @@ void MEM_read() {
 	//activate
 	min = EEPROM.read(112);
 	if (min > 59)min = 10; //default 10minutes
-	//TIME_act = min * 60;
+	TIME_act = min * 60;
 	//endgame
 	min = EEPROM.read(113);
 	sec = EEPROM.read(114);
@@ -288,7 +302,7 @@ void TIME_clock() {
 	TIME_current = hourcurrent * 360 + minutecurrent * 60 + secondcurrent;
 
 	if (TIME_end == TIME_current) GAME_end();  //21-12 dit checken, pas op voor dubbel callen als puzzel te laat wordt opgelost??
-	if (TIME_act == TIME_current - 2) { //minus 2 seconden
+	if (TIME_act == TIME_current + 4) { //minus 2 seconden
 		ACT_exe();
 	}
 
@@ -694,6 +708,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 			for (byte c = 0; c < cc; c++) {
 				pix[c] = CRGB(3, 200, 3);
 			}
+
 			//hier ergens de schakelfunctie voor programming
 			if (PRG_mode > 0) {
 				if (cc == 0)PRG_memsw = 0;
@@ -835,7 +850,8 @@ void SW_on(byte sw) {
 	case 1:
 		//FACTORY();
 		//MEM_reg ^= (1 << 1);
-		ACT_exe();
+		//ACT_exe();
+		GPIOR0 ^= (1 << 0);
 		break;
 
 	case 2:
@@ -1224,20 +1240,24 @@ void PRG_display() {
 	}
 }
 void TIK_on() {
-	TIMSK1 |= (6 << 0);
-	TCNT1H = 0; TCNT1L = 0;
-	//TCCR1B |= (4 << 0);//prescaler	
+	//TIMSK2 |= (6 << 0);
+	//TCNT1H = 0; TCNT1L = 0;
+	TCNT2 = 0;
+	TCCR2B |= (1 << 3);
+	TCCR2A = B01000010;
 	GPIOR1 |= (1 << 3);
 	BEEP_stop = millis();
-	OCR1A = 250;
-	OCR1B = 246;
-	BEEP_length = 5;
+	OCR2A = 250;
+	//OCR2B = 248;
+	BEEP_length = 1;
 }
 void TIK_off() {
 	if (millis() - BEEP_stop > BEEP_length) {
 		GPIOR1 &= ~(1 << 3);
-		GPIOR1 &=~(1 << 6); //buzzer vrij geven
-		TIMSK1 &= ~(6 << 0);
+		GPIOR1 &= ~(1 << 6); //buzzer vrij geven
+		TCCR2B &= ~(1 << 3);
+		TCCR2A = 0;
+		//TIMSK2 &= ~(6 << 0);
 		PORTB |= (1 << 3); //port hoog zetten
 
 	}
@@ -1247,31 +1267,34 @@ void PIEP_on() {
 	if (PIEP_periode > 50)PIEP_count[3]++; //seconde teller
 	if (PIEP_count[3] > 100) {
 		PIEP_count[3] = 0;
-		PIEP_periode --;
+		PIEP_periode--;
 		//Serial.println(PIEP_periode);
 	}
 
 	if (PIEP_count[1] > 1000) {	//10sec
 		if (PIEP_count[2] < 240) {
 			if (PIEP_vol < 5) PIEP_count[2]++; //10 seconde teller
-			PIEP_vol++;
+			//PIEP_vol++;
 			//Serial.println(PIEP_vol);
 		}
 		PIEP_count[1] = 0;
 	}
 
 	PIEP_count[0]++;
-	if (PIEP_count[0] > PIEP_periode & ~ (GPIOR1 & (1 << 6))) { //*10ms
+	if (PIEP_count[0] > PIEP_periode & ~(GPIOR1 & (1 << 6))) { //*10ms
 		PIEP_count[0] = 0;
-		TIMSK1 |= (6 << 0);
-		TCNT1H = 0; TCNT1L = 0;
-		//TCCR1B |= (4 << 0);//prescaler	
+		//TIMSK2 |= (6 << 0);
+		//TCNT1H = 0; TCNT1L = 0;
+		TCNT2 = 0;
+		TCCR2B |= (1 << 3);//start interupt timer
+		TCCR2A = B01000010;
 		GPIOR1 |= (1 << 3);
 		BEEP_stop = millis();
 		BEEP_length = 100; //hoelang beept de beep in ms
-		OCR1A = 20; //klank
-		OCR1B = 19-PIEP_vol; //verschil is volume
+		OCR2A = 150; //klank
+		//OCR2B = 1; // -PIEP_vol; //verschil is volume
 		GPIOR1 |= (1 << 6); //buzzer bezet
+
 	}
 }
 void ACT_exe() { //activatie

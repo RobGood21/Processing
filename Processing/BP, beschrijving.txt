@@ -38,3 +38,4 @@ bit3 TicToc on true off false
 bit4 BEEP on(true)
 bit5 Flag Activatie als true is activatie uitgevoerd kan maar 1 keer
 bit6 if true beep in actie dus clock tictoc niet mogelijk
+bit7 Fastled request(true)
