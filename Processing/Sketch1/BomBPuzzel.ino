@@ -15,7 +15,6 @@
 //declarations
 #define fl FastLED.show();
 
-
 byte aantalpix = 24;
 CRGB pix[24];
 
@@ -43,7 +42,15 @@ unsigned int TIME_game;
 unsigned int TIME_act;
 unsigned int TIME_end;
 
-byte BEEP_mode;
+byte BEEP_mode = 2; //tikking mode
+unsigned long BEEP_stop;
+unsigned int BEEP_length;
+
+unsigned long PIEP_time;
+int PIEP_count[4];
+int PIEP_periode;
+byte PIEP_vol;
+
 byte code[6]; //code to exit escaperoom
 byte pixcolor[16]; //witch color assigned to pix
 byte MEM_reg;
@@ -80,24 +87,32 @@ byte bc;
 
 void setup() {
 	Serial.begin(9600);
-
 	FastLED.addLeds<NEOPIXEL, 4 >(pix, 24);
 	FastLED.setBrightness(200);
 	//ports
 	DDRB |= (15 << 0); //pin8;9;10,11 as output SRCLK RCLK SH/LD
-	PORTB &= ~(1 << 3);//pin11, BEEP low. 
+	PORTB |= (1 << 3);//pin11, BEEP high. 
+
 	PORTB |= (1 << 2); //pin 10 high SH/LD
 	DDRD |= (1 << 6); //pin 6 output Serial out
 	DDRD &= ~(1 << 7); //pin7 as input Serial in
 	PORTD |= (1 << 7); //build-in pullup to pin 7 
 	PORTC |= (63 << 0); //pull ups to pins A0~A5
 
+	//set interrupt for BEEP
+	TCCR1A = 0x00;
+	TCCR1B = 0x00;
+	TCCR1B |= (1 << 3);
+	TCCR1B |= (4 << 0);//prescaler	
+	OCR1A = 50; //init nodig voor de timer punten
+	OCR1B = 25;
+	//TIMSK1 |= (3 << 0);	*****DEZE NIET AANZETTEN***
+
 	MEM_read();
 	TIME_init();
 	COLOR_set();
 	gamebyte[0] = 0; gamebyte[1] = 0;
 	resetcounters();
-
 	//auto gamestart, straks naar mem-read
 
 	//GPIOR0 |= (24 << 0); //auto
@@ -105,6 +120,7 @@ void setup() {
 
 	GPIOR1 |= (1 << 1); //enable clock show
 	TIME_dp(); //display clock
+
 	FastLED.clearData();
 	fl;
 }
@@ -112,10 +128,22 @@ void loop() {
 	slow++;
 	if (slow == 0) SW_exe();
 	SHIFT_exe();
+
+	if (GPIOR1 & (1 << 4)) { //Beep on
+		if (millis() - PIEP_time > 10) { //timer 11 ms
+			PIEP_time = millis();
+			PIEP_on();
+		}
+	}
+
 	if (millis() - tijd > 999) { //timer clock
 		tijd = millis();
+
 		if (GPIOR0 & (1 << 0))TIME_clock();
 	}
+
+	if (GPIOR1 & (1 << 3))TIK_off();
+
 }
 void FACTORY() {
 	//resets EEPROM
@@ -123,10 +151,19 @@ void FACTORY() {
 		EEPROM.update(i, 0xFF);
 	}
 }
+ISR(TIMER1_COMPA_vect) {
+	PINB |= (1 << 3);
+	//PORTB |= (1 << 3);
+}
+ISR(TIMER1_COMPB_vect) {
+	PINB |= (1 << 3);
+	//PORTB &= ~(1 << 3);
+}
 void MEM_read() {
 	byte hr; byte min; byte sec;
 	MEM_reg = EEPROM.read(100);
 	if (MEM_reg & (1 << 0))GPIOR0 |= (1 << 0); //start timer on powerup	
+
 	//instelbare tijden
 	//game
 
@@ -143,7 +180,7 @@ void MEM_read() {
 	//activate
 	min = EEPROM.read(112);
 	if (min > 59)min = 10; //default 10minutes
-	TIME_act = min * 60;
+	//TIME_act = min * 60;
 	//endgame
 	min = EEPROM.read(113);
 	sec = EEPROM.read(114);
@@ -165,6 +202,8 @@ void MEM_read() {
 }
 
 void MEM_write() {
+	EEPROM.update(100, MEM_reg);
+
 	int  minutes = 0;; int seconds = 0;
 	//tijden
 	EEPROM.update(110, TIME_gamehr);
@@ -227,7 +266,9 @@ void TIME_init() {
 	secondcurrent = 0;
 }
 void TIME_clock() {
-
+	if (~GPIOR1 & (1 << 6)) { //alleen als buzzer vrij is
+		if (MEM_reg & (1 << 1)) TIK_on(); //Hier kan nog een instelling komen
+	}
 	if (secondcurrent == 0) {
 		secondcurrent = 60;
 		if (minutecurrent == 0) {
@@ -247,7 +288,9 @@ void TIME_clock() {
 	TIME_current = hourcurrent * 360 + minutecurrent * 60 + secondcurrent;
 
 	if (TIME_end == TIME_current) GAME_end();  //21-12 dit checken, pas op voor dubbel callen als puzzel te laat wordt opgelost??
-
+	if (TIME_act == TIME_current - 2) { //minus 2 seconden
+		ACT_exe();
+	}
 
 	if (TIME_current == 0)GAME_stop();
 
@@ -500,6 +543,14 @@ void TIME_txt(byte txt) {
 		digit[1] = segment(tens);
 		digit[0] = segment(seconds);
 		break;
+	case 12: //tictoc
+		digit[0] = segment(21);
+		digit[1] = segment(0);
+		digit[2] = segment(18);
+		digit[3] = segment(21);
+		digit[4] = segment(1);
+		digit[5] = segment(18);
+		break;
 	}
 }
 void SHIFT_exe() {
@@ -666,7 +717,9 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 
 			if (~GPIOR0 & (1 << 4)) { //aonly if color game is enabled
 				fl;
-				if (cc == 8) GAME_end();
+				if (cc == 8) {
+					GPIOR0 |= (1 << 6); GAME_end();
+				}
 			}
 		}
 	}
@@ -780,17 +833,15 @@ void SW_on(byte sw) {
 		GPIOR0 |= (1 << 4); //enable color game
 		break;
 	case 1:
-		GPIOR0 |= (1 << 4); //enable color game WHY?? here
-		FastLED.clear();
-		for (byte i = 0; i < 8; i++) {
-			pix[i] = CRGB(color[i].red, color[i].green, color[i].blue);
-		}
-		fl;
+		//FACTORY();
+		//MEM_reg ^= (1 << 1);
+		ACT_exe();
 		break;
 
 	case 2:
 		GPIOR0 |= (1 << 6); // set flag game solved
 		GAME_end();
+
 		break;
 	case 3:
 		GPIOR0 ^= (1 << 7);
@@ -810,8 +861,13 @@ void SW_off(byte sw) {
 	//Serial.print("Uit: "); Serial.println(sw);
 	switch (sw) {
 	case 1:
-		FastLED.clear();
-		fl;
+		//	TIMSK1 = 0x00; //disable interrupt beep
+		//	PORTB |= (1 << 3);
+			//FastLED.clear();
+			//fl;
+		break;
+	case 2:
+
 		break;
 	case 3:
 		//PRG_stop();
@@ -860,6 +916,7 @@ void ANIM_exe() {
 			FastLED.clear();
 			fl;
 			GPIOR1 &= ~(1 << 1); //disable clock
+			GPIOR0 &= ~(1 << 0); //stop clock
 			TIME_txt(0); //off
 			ANIM_fase = 12;
 			ANIM_count[4] = 60; //blackout time
@@ -883,6 +940,7 @@ void ANIM_exe() {
 				ANIM_count[4] = 65; //reboot
 				break;
 			case 3:
+				GPIOR0 |= (1 << 0); //start clock
 				ANIM_count[4] = 80; //Escape
 				break;
 			case 4:
@@ -1057,6 +1115,7 @@ void PRG_exe(byte sw) {
 			code[4]++;
 			if (code[4] > 9)code[4] = 0;
 			break;
+
 		}
 		break;
 
@@ -1083,6 +1142,9 @@ void PRG_exe(byte sw) {
 		case 5: //deurcode digit 6
 			code[5]++;
 			if (code[5] > 9)code[5] = 0;
+			break;
+		case 6: //TicToc on/off
+			MEM_reg ^= (1 << 1);
 			break;
 		}
 		break;
@@ -1135,7 +1197,7 @@ void PRG_display() {
 		TIME_txt(7);
 		break;
 	case 2:
-		BAR(2);
+		BAR(1);
 		TIME_txt(8);
 		break;
 	case 3:
@@ -1147,13 +1209,77 @@ void PRG_display() {
 		TIME_txt(11);
 		break;
 	case 5: //deurcode
-		BAR(1);
+		BAR(4);
 		TIME_txt(10);
 		break;
-	case 6:
+	case 6://tixtoc on/off
+		if (MEM_reg & (1 << 1)) {
+			BAR(2);
+		}
+		else {
+			BAR(0);
+		}
+		TIME_txt(12);
 		break;
 	}
 }
-void BEEP_exe() {
+void TIK_on() {
+	TIMSK1 |= (6 << 0);
+	TCNT1H = 0; TCNT1L = 0;
+	//TCCR1B |= (4 << 0);//prescaler	
+	GPIOR1 |= (1 << 3);
+	BEEP_stop = millis();
+	OCR1A = 250;
+	OCR1B = 246;
+	BEEP_length = 5;
+}
+void TIK_off() {
+	if (millis() - BEEP_stop > BEEP_length) {
+		GPIOR1 &= ~(1 << 3);
+		GPIOR1 &=~(1 << 6); //buzzer vrij geven
+		TIMSK1 &= ~(6 << 0);
+		PORTB |= (1 << 3); //port hoog zetten
 
+	}
+}
+void PIEP_on() {
+	PIEP_count[1]++;
+	if (PIEP_periode > 50)PIEP_count[3]++; //seconde teller
+	if (PIEP_count[3] > 100) {
+		PIEP_count[3] = 0;
+		PIEP_periode --;
+		//Serial.println(PIEP_periode);
+	}
+
+	if (PIEP_count[1] > 1000) {	//10sec
+		if (PIEP_count[2] < 240) {
+			if (PIEP_vol < 5) PIEP_count[2]++; //10 seconde teller
+			PIEP_vol++;
+			//Serial.println(PIEP_vol);
+		}
+		PIEP_count[1] = 0;
+	}
+
+	PIEP_count[0]++;
+	if (PIEP_count[0] > PIEP_periode & ~ (GPIOR1 & (1 << 6))) { //*10ms
+		PIEP_count[0] = 0;
+		TIMSK1 |= (6 << 0);
+		TCNT1H = 0; TCNT1L = 0;
+		//TCCR1B |= (4 << 0);//prescaler	
+		GPIOR1 |= (1 << 3);
+		BEEP_stop = millis();
+		BEEP_length = 100; //hoelang beept de beep in ms
+		OCR1A = 20; //klank
+		OCR1B = 19-PIEP_vol; //verschil is volume
+		GPIOR1 |= (1 << 6); //buzzer bezet
+	}
+}
+void ACT_exe() { //activatie
+	if (~GPIOR1 & (1 << 5)) {
+		GPIOR1 |= (1 << 5); //latching, only 1x use in a game
+		GPIOR1 |= (1 << 4);
+		PIEP_vol = 0;
+		PIEP_periode = 400;
+		Serial.println("äctivatie");
+	}
 }
