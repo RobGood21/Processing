@@ -42,7 +42,7 @@ unsigned int TIME_game;
 unsigned int TIME_act;
 unsigned int TIME_end;
 
-byte BEEP_mode = 2; //tikking mode
+//byte BEEP_mode = 2; //tikking mode
 unsigned long BEEP_stop;
 unsigned int BEEP_length;
 
@@ -52,6 +52,7 @@ int PIEP_periode;
 byte PIEP_vol;
 
 byte code[6]; //code to exit escaperoom
+byte defaultCD[6];
 byte pixcolor[16]; //witch color assigned to pix
 byte MEM_reg;
 byte shiftbyte[4]; //0=game2 1=game1 2=segments 3=digits
@@ -103,25 +104,19 @@ void setup() {
 	//set interrupt for BEEP
 	TCCR2A = 0x00; // B01000010;
 	TCCR2B = 0x00;
-
-	//TCCR2A |= (1 << 6); //1
-	//TCCR2A |= (1 << 1);
-
 	TCCR2B |= (1 << 2);//prescaler	
-	OCR2A = 50; //init nodig voor de timer punten
-	OCR2B = 25;
+
 	//TIMSK1 |= (3 << 0);	*****DEZE NIET AANZETTEN***
 
 	MEM_read();
 	TIME_init();
 	COLOR_set();
+	//other initialisations
+	PIEP_periode = 500;
 	gamebyte[0] = 0; gamebyte[1] = 0;
 	resetcounters();
-	//auto gamestart, straks naar mem-read
-
 	//GPIOR0 |= (24 << 0); //auto
 	GPIOR0 |= (1 << 4); //disable color game, switch operation
-
 	GPIOR1 |= (1 << 1); //enable clock show
 	TIME_dp(); //display clock
 
@@ -130,17 +125,9 @@ void setup() {
 }
 void loop() {
 	SHIFT_exe();
-
-	if (GPIOR1 & (1 << 4)) { //Beep on, nog niet gebruikt voor inschakelen piep
-		if (millis() - PIEP_time > 10) { //timer 11 ms
-			PIEP_time = millis();
-			PIEP_on();
-		}
-	}
-
 	//****
 	slow++;
-	if (millis() - slow > 30) {
+	if (millis() - slow > 20) {
 		slow = millis();
 		SW_exe();
 		if (GPIOR1 & (1 << 7)) {
@@ -149,10 +136,20 @@ void loop() {
 		}
 	}
 	//***
-		if (millis() - tijd > 999) { //timer clock
-		tijd = millis();
 
-		if (GPIOR0 & (1 << 0))TIME_clock();
+	if (GPIOR0 & (1 << 0)) {
+		if (MEM_reg & (1 << 2) && GPIOR1 & (1 << 5)) {
+			if (millis() - PIEP_time > 10) { //timer 11 ms
+				PIEP_time = millis();
+				PIEP_on();
+			}
+		}
+
+
+		if (millis() - tijd > 999) { //timer clock
+			tijd = millis();
+			TIME_clock();
+		}
 	}
 
 	//****
@@ -164,6 +161,7 @@ void FACTORY() {
 	for (byte i = 0; i < 255; i++) {
 		EEPROM.update(i, 0xFF);
 	}
+	setup();
 }
 ISR(TIMER2_COMPA_vect) {
 	//PINB |= (1 << 3);
@@ -178,10 +176,6 @@ void MEM_read() {
 	MEM_reg = EEPROM.read(100);
 	if (MEM_reg & (1 << 0))GPIOR0 |= (1 << 0); //start timer on powerup	
 
-	//instelbare tijden
-	//game
-
-	//game time
 	hourtimer = EEPROM.read(110);
 	if (hourtimer > 9)hourtimer = 1; //default 1 hour
 	TIME_gamehr = hourtimer;
@@ -205,14 +199,19 @@ void MEM_read() {
 	ANIM_speed = EEPROM.read(115);
 	if (ANIM_speed > 120)ANIM_speed = 60;
 
-	//Serial.print("code: ");
+	defaultCD[0] = 0;
+	defaultCD[1] = 4;
+	defaultCD[2] = 5;
+	defaultCD[3] = 5;
+	defaultCD[4] = 2;
+	defaultCD[5] = 1;
+
 	for (byte i = 0; i < 6; i++) {
 		code[i] = EEPROM.read(i + 50);
-		if (code[i] > 9)code[i] = i + 1;
+		if (code[i] > 9) code[i] = defaultCD[i];
 		//Serial.print(code[i]);
 	}
 	//Serial.println(" ");
-
 }
 
 void MEM_write() {
@@ -280,9 +279,11 @@ void TIME_init() {
 	secondcurrent = 0;
 }
 void TIME_clock() {
+
 	if (~GPIOR1 & (1 << 6)) { //alleen als buzzer vrij is
 		if (MEM_reg & (1 << 1)) TIK_on(); //Hier kan nog een instelling komen
 	}
+
 	if (secondcurrent == 0) {
 		secondcurrent = 60;
 		if (minutecurrent == 0) {
@@ -296,16 +297,15 @@ void TIME_clock() {
 		minutecurrent--;
 		TIME_segments(1);
 	}
+
 	secondcurrent--;
 	TIME_segments(0);
-
 	TIME_current = hourcurrent * 360 + minutecurrent * 60 + secondcurrent;
 
 	if (TIME_end == TIME_current) GAME_end();  //21-12 dit checken, pas op voor dubbel callen als puzzel te laat wordt opgelost??
 	if (TIME_act == TIME_current + 4) { //minus 2 seconden
-		ACT_exe();
+		ACT_exe(false);
 	}
-
 	if (TIME_current == 0)GAME_stop();
 
 	//Serial.print(hourcurrent); Serial.print(":"); Serial.print(minutecurrent);
@@ -481,7 +481,7 @@ void TIME_txt(byte txt) {
 		break;
 	case 6: //start program mode, clear segments 
 		for (byte i = 0; i < 6; i++) {
-			digit[i] = segment(23);
+			digit[i] = 0;
 		}
 		break;
 	case 7: //program mode 1 (1t) looptijd spel, main timer bij power up
@@ -564,6 +564,23 @@ void TIME_txt(byte txt) {
 		digit[3] = segment(21);
 		digit[4] = segment(1);
 		digit[5] = segment(18);
+		break;
+	case 13: //BEEP
+		digit[0] = 0;
+		digit[1] = segment(12);
+		digit[2] = segment(16);
+		digit[3] = segment(16);
+		digit[4] = segment(10);
+		digit[5] = 0;
+
+		break;
+	case 14: //AC-tYd
+		digit[0] = segment(22);
+		digit[1] = segment(11);
+		digit[2] = segment(18);
+		digit[3] = segment(23);
+		digit[4] = segment(21);
+		digit[5] = segment(13);
 		break;
 	}
 }
@@ -771,7 +788,9 @@ void resetcounters() {
 	}
 }
 void GAME_start() {
-	byte num1; byte num2; byte val;
+	GPIOR2 |= (1 << 1); //flag kleurenpuzzel is gestart
+
+	byte num1=0; byte num2=0; byte val=0;
 	//Serial.println("game start");
 	//makes new game
 	//clear all assigned colors
@@ -801,7 +820,6 @@ void GAME_start() {
 			pixcolor[rndm[v + (i * 8)]] = v;
 		}
 	}
-
 	//toon kleuren
 	//for (byte i = 0; i < 16; i++) {
 		//Serial.print(pixcolor[i]); Serial.print(" ");
@@ -814,13 +832,14 @@ void GAME_start() {
 
 	// animatie starten
 	ANIM_fase = 1;
-	ANIM_count[0] = 0;
+	resetcounters();
+
 }
 void GAME_stop() {
 	//timer afgelopen op 0
 	GPIOR0 &= ~(1 << 0);
 	//Serial.println("clock stop");
-	ANIM_fase = 30;
+	ANIM_fase = 40; // 30;
 }
 void SW_exe() {
 	byte nss = PINC;
@@ -844,14 +863,13 @@ void SW_on(byte sw) {
 	//Serial.print("Aan: "); Serial.println(sw);
 	switch (sw) {
 	case 0:
-		GPIOR0 |= (1 << 3); // start new game setup
-		GPIOR0 |= (1 << 4); //enable color game
+		ACT_exe(true);
 		break;
 	case 1:
-		//FACTORY();
+		FACTORY();
 		//MEM_reg ^= (1 << 1);
 		//ACT_exe();
-		GPIOR0 ^= (1 << 0);
+		//GPIOR0 ^= (1 << 0);
 		break;
 
 	case 2:
@@ -889,7 +907,7 @@ void SW_off(byte sw) {
 		//PRG_stop();
 		break;
 	case 4:
-		//GPIOR0 |= (24 << 0); // start new game setup
+		GPIOR0 |= (24 << 0); // start new game setup
 		break;
 	case 5:
 		//PRG_stop();
@@ -927,7 +945,7 @@ void ANIM_exe() {
 
 	case 10:
 		ANIM_count[0]++;
-		if (ANIM_count[0] > 50) { // pauze na oplossen puzzel
+		if (ANIM_count[0] > 80) { // pauze na oplossen puzzel
 			ANIM_count[0] = 0;
 			FastLED.clear();
 			fl;
@@ -951,6 +969,8 @@ void ANIM_exe() {
 			switch (ANIM_count[1]) { //tijden
 			case 1:
 				ANIM_count[4] = 40; //bypass
+				PIEP_periode = 300;
+				BEEP();
 				break;
 			case 2:
 				ANIM_count[4] = 65; //reboot
@@ -1046,9 +1066,32 @@ void ANIM_exe() {
 			fl;
 			TIME_txt(5);
 		}
-
 		break;
-	case 31:
+
+	case 40: //blow
+		resetcounters();
+		ANIM_fase = 41;
+		break;
+	case 41:
+		for (byte i; i < 24; i++) {
+			pix[i] = CRGB(0xFFFFFF);
+		}
+		fl;
+		//FastLED.show();
+		ANIM_fase = 42;
+		break;
+	case 42:
+		if (ANIM_count[0] > 5) {
+			ANIM_count[0] = 0;
+			ANIM_fase = 30;
+			FastLED.clear();
+			//FastLED.show();
+			fl;
+		}
+		break;
+
+	default:
+		//do nothing
 		break;
 	}
 
@@ -1079,7 +1122,7 @@ void PRG_exe(byte sw) {
 	switch (sw) {
 	case 1:
 		PRG_mode++;
-		if (PRG_mode > 6)PRG_mode = 1;
+		if (PRG_mode > 8)PRG_mode = 1;
 
 		break;
 	case 4: //2e rij 1e links
@@ -1162,6 +1205,12 @@ void PRG_exe(byte sw) {
 		case 6: //TicToc on/off
 			MEM_reg ^= (1 << 1);
 			break;
+		case 7: //beep on/off
+			MEM_reg ^= (1 << 2);
+			break;
+		case 8: //activatie schakeld tijd naar activatietijd
+			MEM_reg ^= (1 << 3);
+			break;
 		}
 		break;
 	case 8: //3e rij rechts
@@ -1237,6 +1286,24 @@ void PRG_display() {
 		}
 		TIME_txt(12);
 		break;
+	case 7: //beep on/off
+		if (MEM_reg & (1 << 2)) {
+			BAR(2);
+		}
+		else {
+			BAR(0);
+		}
+		TIME_txt(13);
+		break;
+	case 8: //activatie tijd aanpassen (uit(true) = default)
+		if (MEM_reg & (1 << 3)) {
+			BAR(0);
+		}
+		else {
+			BAR(2);
+		}
+		TIME_txt(14);
+		break;
 	}
 }
 void TIK_on() {
@@ -1247,9 +1314,16 @@ void TIK_on() {
 	TCCR2A = B01000010;
 	GPIOR1 |= (1 << 3);
 	BEEP_stop = millis();
-	OCR2A = 250;
+	GPIOR2 ^= (1 << 0);
+	if (GPIOR2 & (1 << 0)) {
+		OCR2A = 100;
+	}
+	else {
+		OCR2A = 75;
+	}
 	//OCR2B = 248;
 	BEEP_length = 1;
+
 }
 void TIK_off() {
 	if (millis() - BEEP_stop > BEEP_length) {
@@ -1264,45 +1338,62 @@ void TIK_off() {
 }
 void PIEP_on() {
 	PIEP_count[1]++;
-	if (PIEP_periode > 50)PIEP_count[3]++; //seconde teller
+	if (PIEP_periode > 30)PIEP_count[3]++; //seconde teller, totdat piepperiode <=50=500ms
 	if (PIEP_count[3] > 100) {
 		PIEP_count[3] = 0;
 		PIEP_periode--;
-		//Serial.println(PIEP_periode);
-	}
-
-	if (PIEP_count[1] > 1000) {	//10sec
-		if (PIEP_count[2] < 240) {
-			if (PIEP_vol < 5) PIEP_count[2]++; //10 seconde teller
-			//PIEP_vol++;
-			//Serial.println(PIEP_vol);
-		}
-		PIEP_count[1] = 0;
 	}
 
 	PIEP_count[0]++;
-	if (PIEP_count[0] > PIEP_periode & ~(GPIOR1 & (1 << 6))) { //*10ms
+	if (PIEP_count[0] > PIEP_periode & ~(GPIOR1 & (1 << 6))) { //iedere piep periode*10ms
+
+		//Serial.println(PIEP_periode);
 		PIEP_count[0] = 0;
-		//TIMSK2 |= (6 << 0);
-		//TCNT1H = 0; TCNT1L = 0;
-		TCNT2 = 0;
-		TCCR2B |= (1 << 3);//start interupt timer
-		TCCR2A = B01000010;
-		GPIOR1 |= (1 << 3);
-		BEEP_stop = millis();
-		BEEP_length = 100; //hoelang beept de beep in ms
-		OCR2A = 150; //klank
-		//OCR2B = 1; // -PIEP_vol; //verschil is volume
-		GPIOR1 |= (1 << 6); //buzzer bezet
+		BEEP_set(40);
 
 	}
 }
-void ACT_exe() { //activatie
+void BEEP_set(int bl) {
+	TCNT2 = 0;
+	TCCR2B |= (1 << 3);//start interupt timer
+	TCCR2A = B01000010;
+	GPIOR1 |= (1 << 3);
+	BEEP_stop = millis();
+	BEEP_length = bl; //hoelang beept de beep in ms
+	OCR2A = 30; //klank
+	//OCR2B = 1; // -PIEP_vol; //verschil is volume
+	GPIOR1 |= (1 << 6); //buzzer bezet
+}
+void BEEP() { //lange beep
+	BEEP_set(500);
+}
+
+void ACT_exe(boolean time) { //activatie time true is met schakelaar 
+
 	if (~GPIOR1 & (1 << 5)) {
 		GPIOR1 |= (1 << 5); //latching, only 1x use in a game
-		GPIOR1 |= (1 << 4);
+			if (time == true) {
+			if (~MEM_reg & (1 << 3)) {
+				hourcurrent = 0;
+				minutecurrent = TIME_act / 60;
+				//Serial.println(minutecurrent);
+				secondcurrent = 0;
+				TIME_dp();
+			}
+		}
+
 		PIEP_vol = 0;
 		PIEP_periode = 400;
-		Serial.println("äctivatie");
+		PIEP_time = millis();
+		for (byte i = 0; i < 4; i++) {
+			PIEP_count[i] = 0;
+		}
+		//Als bij bereiken activatie de puzzel niet is gestart..
+		if (~GPIOR2 & (1 << 1)) { //puzzel niet gestart
+
+			if (PINC & (1 << 4)) { //ontsteker is niet verbonden met massa				
+				GPIOR0 |= (24 << 0); //start puzzel
+			}
+		}
 	}
 }

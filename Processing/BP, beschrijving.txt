@@ -19,6 +19,8 @@ EEPROM
 MEM_reg diverse instellingen
 bit0 Start clock on power up
 bit1 TicToc on (true, default)
+bit2 Beep on (true, default)
+bit3 Activatie schakelt naar activatie tijd On=false off=true(default)
 
 common register GPIOR0
 bit0 clock runs(true) on hold(false)
@@ -39,3 +41,7 @@ bit4 BEEP on(true)
 bit5 Flag Activatie als true is activatie uitgevoerd kan maar 1 keer
 bit6 if true beep in actie dus clock tictoc niet mogelijk
 bit7 Fastled request(true)
+
+common register GPIOR2
+bit0 tic (true) toc(false)
+bit1 Kleurenpuzzel is gestart nodig voor automatische start true =gestart
