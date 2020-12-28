@@ -14,6 +14,7 @@ EEPROM
 113=minute end game
 114=second end game
 115=ANIM_speed, snelheid van de animaties
+116 TUP aantal keren dat speellengte kan worden verhoogd met 1 minuut
 
 
 MEM_reg diverse instellingen

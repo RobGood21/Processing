@@ -14,9 +14,9 @@
 
 //declarations
 #define fl GPIOR1 |=(1<<7); //request Fastled
+#define aantalpix 24
 
-byte aantalpix = 24;
-CRGB pix[24];
+CRGB pix[aantalpix];
 
 struct connect
 {
@@ -50,7 +50,8 @@ unsigned long PIEP_time;
 int PIEP_count[4];
 int PIEP_periode;
 byte PIEP_vol;
-
+byte TUP; //aantal keren dat tijd kan worden verhoogd
+byte TUP_count;
 byte code[6]; //code to exit escaperoom
 byte defaultCD[6];
 byte pixcolor[16]; //witch color assigned to pix
@@ -88,10 +89,10 @@ byte bc;
 
 void setup() {
 	Serial.begin(9600);
-
-	FastLED.addLeds<NEOPIXEL, 4 >(pix, 24);
+	FastLED.addLeds<NEOPIXEL, 4 >(pix, aantalpix);
 	FastLED.setBrightness(200);
 	//ports
+	delay(200);
 	DDRB |= (15 << 0); //pin8;9;10,11 as output SRCLK RCLK SH/LD
 	PORTB |= (1 << 3);//pin11, BEEP high. 
 
@@ -105,29 +106,35 @@ void setup() {
 	TCCR2A = 0x00; // B01000010;
 	TCCR2B = 0x00;
 	TCCR2B |= (1 << 2);//prescaler	
-
 	//TIMSK1 |= (3 << 0);	*****DEZE NIET AANZETTEN***
+	GPIOR0 = 0;//reset general purpose registers
+	GPIOR1 = 0;
+	GPIOR2 = 0;
 
 	MEM_read();
 	TIME_init();
 	COLOR_set();
+
 	//other initialisations
+	PRG_mode = 0;
+	TUP_count = 0;
 	PIEP_periode = 500;
 	gamebyte[0] = 0; gamebyte[1] = 0;
 	resetcounters();
-	//GPIOR0 |= (24 << 0); //auto
 	GPIOR0 |= (1 << 4); //disable color game, switch operation
 	GPIOR1 |= (1 << 1); //enable clock show
 	TIME_dp(); //display clock
-
-	FastLED.clearData();
-	FastLED.show();
+	//Serial.println("setup");
+	FastLED.clear();
+	fl;
 }
+
+
 void loop() {
 	SHIFT_exe();
 	//****
 	slow++;
-	if (millis() - slow > 20) {
+	if (millis() - slow > 100) {
 		slow = millis();
 		SW_exe();
 		if (GPIOR1 & (1 << 7)) {
@@ -161,15 +168,8 @@ void FACTORY() {
 	for (byte i = 0; i < 255; i++) {
 		EEPROM.update(i, 0xFF);
 	}
+	delay(200);
 	setup();
-}
-ISR(TIMER2_COMPA_vect) {
-	//PINB |= (1 << 3);
-	//PORTB |= (1 << 3);
-}
-ISR(TIMER2_COMPB_vect) {
-	//PINB |= (1 << 3);
-	//PORTB &= ~(1 << 3);
 }
 void MEM_read() {
 	byte hr; byte min; byte sec;
@@ -211,6 +211,9 @@ void MEM_read() {
 		if (code[i] > 9) code[i] = defaultCD[i];
 		//Serial.print(code[i]);
 	}
+	TUP = EEPROM.read(116);
+	if (TUP > 20)TUP = 10;
+
 	//Serial.println(" ");
 }
 
@@ -574,13 +577,35 @@ void TIME_txt(byte txt) {
 		digit[5] = 0;
 
 		break;
-	case 14: //AC-tYd
+	case 14: //AC-Tijd Schakelt bij activatie timer naar activatie tijd
 		digit[0] = segment(22);
 		digit[1] = segment(11);
 		digit[2] = segment(18);
 		digit[3] = segment(23);
 		digit[4] = segment(21);
 		digit[5] = segment(13);
+		break;
+	case 15://TUP time up how many times during 1 game
+		units = TUP;
+		while (units > 9) {
+			tens++;
+			units = units - 10;
+		}
+		digit[0] = segment(units);
+		digit[1] = segment(tens);
+
+		digit[2] = segment(23);
+		digit[3] = segment(12);
+		digit[4] = segment(20);
+		digit[5] = segment(18);
+		break;
+	case 16: //Reset (factory)
+		digit[0] = segment(18);
+		digit[1] = segment(16);
+		digit[2] = segment(14);
+		digit[3] = segment(16);
+		digit[4] = segment(15);
+		digit[5] = 0;
 		break;
 	}
 }
@@ -731,20 +756,27 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 				if (cc == 0)PRG_memsw = 0;
 				if (cc == 1) PRG_sw();//Serial.println("1 verbinding");
 			}
+			//else {
 
 
-			for (byte i = 0; i < 8; i++) {
-				px1 = con[i].first; px2 = con[i].second;
 
-				if (con[i].cnt == true) {// &GPIOR0 & (1 << 4)) {
-					pix[px1 + 8] = CRGB(color[pixcolor[px1]].red, color[pixcolor[px1]].green, color[pixcolor[px1]].blue);
-					pix[px2 + 8] = CRGB(color[pixcolor[px2]].red, color[pixcolor[px2]].green, color[pixcolor[px2]].blue);
-					//Serial.print("*");
+				for (byte i = 0; i < 8; i++) {
+					px1 = con[i].first; px2 = con[i].second;
+
+					if (con[i].cnt == true & PRG_mode==0) {// &GPIOR0 & (1 << 4)) {
+						pix[px1 + 8] = CRGB(color[pixcolor[px1]].red, color[pixcolor[px1]].green, color[pixcolor[px1]].blue);
+						pix[px2 + 8] = CRGB(color[pixcolor[px2]].red, color[pixcolor[px2]].green, color[pixcolor[px2]].blue);
+						//Serial.print("*");
+					}
+					con[i].first = 0;
+					con[i].second = 0;
+					con[i].cnt = false;
 				}
-				con[i].first = 0;
-				con[i].second = 0;
-				con[i].cnt = false;
-			}
+
+			//}
+
+
+
 			//Serial.println(cc);
 
 			if (~GPIOR0 & (1 << 4)) { //aonly if color game is enabled
@@ -790,7 +822,7 @@ void resetcounters() {
 void GAME_start() {
 	GPIOR2 |= (1 << 1); //flag kleurenpuzzel is gestart
 
-	byte num1=0; byte num2=0; byte val=0;
+	byte num1 = 0; byte num2 = 0; byte val = 0;
 	//Serial.println("game start");
 	//makes new game
 	//clear all assigned colors
@@ -862,20 +894,23 @@ void SW_exe() {
 void SW_on(byte sw) {
 	//Serial.print("Aan: "); Serial.println(sw);
 	switch (sw) {
-	case 0:
+	case 0://activatie switch van GM of Booby trap 
 		ACT_exe(true);
 		break;
-	case 1:
-		FACTORY();
-		//MEM_reg ^= (1 << 1);
-		//ACT_exe();
-		//GPIOR0 ^= (1 << 0);
+	case 1: //verhoog speeltijd met 1 minuut
+		if (TUP > TUP_count) {
+			TUP_count++;
+			minutecurrent++;
+			if (minutecurrent > 59) {
+				minutecurrent = 0;
+				if (hourcurrent < 9) hourcurrent++;
+			}
+			TIME_dp();
+		}
 		break;
-
 	case 2:
 		GPIOR0 |= (1 << 6); // set flag game solved
 		GAME_end();
-
 		break;
 	case 3:
 		GPIOR0 ^= (1 << 7);
@@ -895,13 +930,8 @@ void SW_off(byte sw) {
 	//Serial.print("Uit: "); Serial.println(sw);
 	switch (sw) {
 	case 1:
-		//	TIMSK1 = 0x00; //disable interrupt beep
-		//	PORTB |= (1 << 3);
-			//FastLED.clear();
-			//fl;
 		break;
 	case 2:
-
 		break;
 	case 3:
 		//PRG_stop();
@@ -1004,7 +1034,7 @@ void ANIM_exe() {
 			FastLED.clear();
 			pix[ANIM_count[3]] = CRGB::Red;
 			ANIM_count[3]++;
-			if (ANIM_count[3] > 24)ANIM_count[3] = 0;
+			if (ANIM_count[3] > aantalpix)ANIM_count[3] = 0;
 			fl;
 			break;
 
@@ -1073,7 +1103,7 @@ void ANIM_exe() {
 		ANIM_fase = 41;
 		break;
 	case 41:
-		for (byte i; i < 24; i++) {
+		for (byte i; i < aantalpix; i++) {
 			pix[i] = CRGB(0xFFFFFF);
 		}
 		fl;
@@ -1121,8 +1151,10 @@ void PRG_exe(byte sw) {
 	byte minutes = 0;
 	switch (sw) {
 	case 1:
+		FastLED.clear();
+		fl;
 		PRG_mode++;
-		if (PRG_mode > 8)PRG_mode = 1;
+		if (PRG_mode > 10)PRG_mode = 1;
 
 		break;
 	case 4: //2e rij 1e links
@@ -1211,6 +1243,10 @@ void PRG_exe(byte sw) {
 		case 8: //activatie schakeld tijd naar activatietijd
 			MEM_reg ^= (1 << 3);
 			break;
+		case 9: //TUP aantal keren tijd te verhogen
+			TUP++;
+			if (TUP > 20)TUP = 1;
+			break;
 		}
 		break;
 	case 8: //3e rij rechts
@@ -1229,12 +1265,19 @@ void PRG_exe(byte sw) {
 			break;
 		}
 		break;
+	case 15:
+		if (PRG_mode == 10) {
+			//factory reset
+			FACTORY();
+		}
+		break;
 	}
 	PRG_display();
 }
 void PRG_start() {
 	//enters program mode
 	GPIOR0 &= ~(1 << 0); //disable clock
+	GPIOR0 |= (1 << 4); //disable color puzzle
 	TIME_txt(6); //clear display
 	FastLED.clear();
 	FastLED.setBrightness(50);
@@ -1250,6 +1293,7 @@ void PRG_stop() {
 	setup();
 }
 void BAR(byte clr) {
+
 	for (byte i = 0; i < 8; i++) {
 		pix[i] = CRGB(color[clr].red, color[clr].green, color[clr].blue);
 	}
@@ -1303,6 +1347,12 @@ void PRG_display() {
 			BAR(2);
 		}
 		TIME_txt(14);
+		break;
+	case 9: // TUP aantal mogelijke ophogingen speeltijd met 1 minuut
+		TIME_txt(15);
+		break;
+	case 10: //reset (factory)
+		TIME_txt(16);
 		break;
 	}
 }
@@ -1372,7 +1422,7 @@ void ACT_exe(boolean time) { //activatie time true is met schakelaar
 
 	if (~GPIOR1 & (1 << 5)) {
 		GPIOR1 |= (1 << 5); //latching, only 1x use in a game
-			if (time == true) {
+		if (time == true) {
 			if (~MEM_reg & (1 << 3)) {
 				hourcurrent = 0;
 				minutecurrent = TIME_act / 60;
