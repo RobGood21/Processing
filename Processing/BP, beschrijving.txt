@@ -30,7 +30,7 @@ bit2 finding free connection
 bit3 start puzzle true > make kleuren
 bit4 start puzzle, toon de kleuren, puzzle active false, not active true
 bit5 check for connection in start-up
-bit6 eindspel running (true)
+bit6 Gameread enabled false; disabled true
 bit7 status prgmode true =on 
 
 common register GPIOR1
@@ -46,3 +46,6 @@ bit7 Fastled request(true)
 common register GPIOR2
 bit0 tic (true) toc(false)
 bit1 Kleurenpuzzel is gestart nodig voor automatische start true =gestart
+bit2 one shot shows control led before game started withou t showing the ledstrip
+
+

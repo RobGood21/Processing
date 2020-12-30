@@ -14,9 +14,11 @@
 
 //declarations
 #define fl GPIOR1 |=(1<<7); //request Fastled
-#define aantalpix 24
+#define aantalpix 25
+#define aantalled 1
 
 CRGB pix[aantalpix];
+CRGB led[aantalled];
 
 struct connect
 {
@@ -45,7 +47,7 @@ unsigned int TIME_end;
 //byte BEEP_mode = 2; //tikking mode
 unsigned long BEEP_stop;
 unsigned int BEEP_length;
-
+byte ledstatus = 0; //bit 0=groen; bit 1= oranje bit 2=rood
 unsigned long PIEP_time;
 int PIEP_count[4];
 int PIEP_periode;
@@ -60,6 +62,7 @@ byte shiftbyte[4]; //0=game2 1=game1 2=segments 3=digits
 byte gamebyte[2];
 byte gamebytecount = 0x00;
 byte gamebit = 0;
+byte grs; ///GAME READ SPEED************************************************
 byte digit[6];
 byte segmentcount = 0;
 byte bytecount = 0;
@@ -70,14 +73,15 @@ byte minutecurrent;
 byte minutetimer;
 byte secondcurrent;
 byte ANIM_speed;
-byte slow;
-byte SW_status = B11111111;
+unsigned long slowtime;
+byte SW_status;
 byte rndm[16];
 unsigned long tijd; //timer clock
 unsigned long ANIM_tijd; //timer animaties
 byte ANIM_fase;
 byte ANIM_count[6]; //tellers
-
+byte LED_count[3];
+byte LED_fase;
 byte PRG_mode;
 byte PRG_memsw;
 
@@ -90,6 +94,8 @@ byte bc;
 void setup() {
 	Serial.begin(9600);
 	FastLED.addLeds<NEOPIXEL, 4 >(pix, aantalpix);
+	FastLED.addLeds<NEOPIXEL, 5 >(led, aantalled);
+
 	FastLED.setBrightness(200);
 	//ports
 	delay(200);
@@ -110,12 +116,14 @@ void setup() {
 	GPIOR0 = 0;//reset general purpose registers
 	GPIOR1 = 0;
 	GPIOR2 = 0;
-
+	SW_status = 0xFF;
 	MEM_read();
 	TIME_init();
 	COLOR_set();
 
 	//other initialisations
+	//LED_fase = 1;
+
 	PRG_mode = 0;
 	TUP_count = 0;
 	PIEP_periode = 500;
@@ -123,8 +131,13 @@ void setup() {
 	resetcounters();
 	GPIOR0 |= (1 << 4); //disable color game, switch operation
 	GPIOR1 |= (1 << 1); //enable clock show
+	GPIOR2 |= (1 << 2); //disable fastled 
+
 	TIME_dp(); //display clock
 	//Serial.println("setup");
+	//ANIM_fase = 00; //
+	ledstatus = 7;
+	//LED_fase = 10; //control lights
 	FastLED.clear();
 	fl;
 }
@@ -133,12 +146,20 @@ void setup() {
 void loop() {
 	SHIFT_exe();
 	//****
-	slow++;
-	if (millis() - slow > 100) {
-		slow = millis();
+	if (millis() - slowtime > 10) {
+		slowtime = millis();
 		SW_exe();
 		if (GPIOR1 & (1 << 7)) {
+			if (GPIOR2 & (1 << 2))FastLED.clear();
+
+			//led[0] = CRGB(0x0);
+			if (ledstatus & (1 << 0))led[0].r = 255; //oranje
+			if (ledstatus & (1 << 1))led[0].g = 255; //rood
+			if (ledstatus & (1 << 2))led[0].b = 255; //groen
+
 			FastLED.show();
+
+
 			GPIOR1 &= ~(1 << 7);
 		}
 	}
@@ -286,6 +307,7 @@ void TIME_clock() {
 	if (~GPIOR1 & (1 << 6)) { //alleen als buzzer vrij is
 		if (MEM_reg & (1 << 1)) TIK_on(); //Hier kan nog een instelling komen
 	}
+	ledstatus ^= (1 << 2); //knipper green led 
 
 	if (secondcurrent == 0) {
 		secondcurrent = 60;
@@ -306,13 +328,14 @@ void TIME_clock() {
 	TIME_current = hourcurrent * 360 + minutecurrent * 60 + secondcurrent;
 
 	if (TIME_end == TIME_current) GAME_end();  //21-12 dit checken, pas op voor dubbel callen als puzzel te laat wordt opgelost??
-	if (TIME_act == TIME_current + 4) { //minus 2 seconden
-		ACT_exe(false);
-	}
-	if (TIME_current == 0)GAME_stop();
+	if (TIME_act == TIME_current + 4) ACT_exe(false);
 
-	//Serial.print(hourcurrent); Serial.print(":"); Serial.print(minutecurrent);
-	//Serial.print(":"); Serial.println(secondcurrent);
+	ledstatus &= ~(1 << 0);
+	ledstatus &= ~(1 << 1);
+	if (TIME_act > TIME_current)ledstatus |= (1 << 0); //set oranje controlled
+	if (TIME_end + 60 > TIME_current)ledstatus |= (1 << 1); //set red control led
+	if (TIME_current == 0)GAME_stop();
+	if (ANIM_fase == 0) fl; //*******************
 }
 void TIME_dp() { //displays the timer
 	for (byte i = 0; i < 3; i++) {
@@ -637,7 +660,7 @@ void SHIFT_exe() {
 		switch (bytecount) {
 		case 4: //alle bytes verzonden
 
-			if (millis() - ANIM_tijd > ANIM_speed) { //timer animaties x50ms
+			if (millis() - ANIM_tijd > ANIM_speed) { //timer animaties
 				ANIM_exe();
 				ANIM_tijd = millis();
 			}
@@ -670,6 +693,7 @@ void SHIFT_exe() {
 	}
 }
 void GAME_read() { //leest de verbindingen, called shift_exe
+	//grs++;
 	boolean nw = false;
 	byte px1; byte px2;
 	byte r[2]; byte d = 0; byte cc = 0;
@@ -735,8 +759,14 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 						cc++;
 					}
 				}
+
 				//set pixels 0~7 rood
-				pix[i] = CRGB(200, 3, 3);
+				if (PRG_mode == 0) {
+				pix[i] = CRGB(200, 10, 2); ///***************
+				//Serial.println("|");
+				}
+
+
 			}
 			if (GPIOR0 & (1 << 5)) {
 				if (cc > 0) {
@@ -746,10 +776,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 					GPIOR0 &= ~(1 << 5);
 				}
 			}
-
-			for (byte c = 0; c < cc; c++) {
-				pix[c] = CRGB(3, 200, 3);
-			}
+			//Serial.print("*");
 
 			//hier ergens de schakelfunctie voor programming
 			if (PRG_mode > 0) {
@@ -758,28 +785,29 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 			}
 			//else {
 
-
-
-				for (byte i = 0; i < 8; i++) {
-					px1 = con[i].first; px2 = con[i].second;
-
-					if (con[i].cnt == true & PRG_mode==0) {// &GPIOR0 & (1 << 4)) {
-						pix[px1 + 8] = CRGB(color[pixcolor[px1]].red, color[pixcolor[px1]].green, color[pixcolor[px1]].blue);
-						pix[px2 + 8] = CRGB(color[pixcolor[px2]].red, color[pixcolor[px2]].green, color[pixcolor[px2]].blue);
-						//Serial.print("*");
-					}
-					con[i].first = 0;
-					con[i].second = 0;
-					con[i].cnt = false;
+			if (PRG_mode == 0) { //**************************************
+				for (byte c = 0; c < cc; c++) {
+					pix[c] = CRGB(3, 200, 3);
 				}
+			}
 
+
+			for (byte i = 0; i < 8; i++) {
+				px1 = con[i].first; px2 = con[i].second;
+
+				if (con[i].cnt == true & PRG_mode == 0) {// & GPIOR0 & (1 << 4)) {
+					pix[px1 + 8] = CRGB(color[pixcolor[px1]].red, color[pixcolor[px1]].green, color[pixcolor[px1]].blue);
+					pix[px2 + 8] = CRGB(color[pixcolor[px2]].red, color[pixcolor[px2]].green, color[pixcolor[px2]].blue);
+					//Serial.print("*");
+				}
+				con[i].first = 0;
+				con[i].second = 0;
+				con[i].cnt = false;
+			}
 			//}
 
-
-
 			//Serial.println(cc);
-
-			if (~GPIOR0 & (1 << 4)) { //aonly if color game is enabled
+			if (~GPIOR0 & (1 << 4)) { //aonly if color game is enabled				
 				fl;
 				if (cc == 8) {
 					GPIOR0 |= (1 << 6); GAME_end();
@@ -789,6 +817,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 	}
 }
 void GAME_end() { //color puzzle solved, in 0pbouw knop2 on
+	GPIOR2 &= ~(1 << 2); //enable pixels
 	int time; int min = 0;
 	if (GPIOR0 & (1 << 6)) { //	puzzle solved	
   //set time, no display
@@ -821,7 +850,6 @@ void resetcounters() {
 }
 void GAME_start() {
 	GPIOR2 |= (1 << 1); //flag kleurenpuzzel is gestart
-
 	byte num1 = 0; byte num2 = 0; byte val = 0;
 	//Serial.println("game start");
 	//makes new game
@@ -927,7 +955,7 @@ void SW_on(byte sw) {
 	}
 }
 void SW_off(byte sw) {
-	//Serial.print("Uit: "); Serial.println(sw);
+	Serial.print("Uit: "); Serial.println(sw);
 	switch (sw) {
 	case 1:
 		break;
@@ -937,7 +965,9 @@ void SW_off(byte sw) {
 		//PRG_stop();
 		break;
 	case 4:
-		GPIOR0 |= (24 << 0); // start new game setup
+		//GPIOR0 |= (24 << 0); // start new game setup
+		GPIOR0 |= (1 << 3); //start gamestart
+		GPIOR0 |= (1 << 4); //disable game
 		break;
 	case 5:
 		//PRG_stop();
@@ -950,14 +980,20 @@ void ANIM_exe() {
 	case 0:
 		break;
 	case 1:
+		GPIOR2 &= ~(1 << 2);// enable fastled show 
+
+		GPIOR0 |= (1 << 6); //disable //******************
 		FastLED.clear();
 		if (ANIM_count[0] > 10) { //timer 10x20ms
 			ANIM_count[0] = 0;
+			Serial.print(ANIM_count[1]);
 
 			if (ANIM_count[1] > 7) {
 				ANIM_count[1] = 0;
 				ANIM_fase = 0;
-				GPIOR0 &= ~(1 << 4); //enable color game		
+				GPIOR0 &= ~(1 << 4); //enable color game	
+				//*****************
+				GPIOR0 &= ~(1 << 6);//enable gameread
 			}
 			else {
 				//Serial.println(ANIM_count[1]);
@@ -1124,7 +1160,6 @@ void ANIM_exe() {
 		//do nothing
 		break;
 	}
-
 }
 void PRG_sw() {
 	byte sw;
@@ -1152,7 +1187,7 @@ void PRG_exe(byte sw) {
 	switch (sw) {
 	case 1:
 		FastLED.clear();
-		fl;
+		//fl;
 		PRG_mode++;
 		if (PRG_mode > 10)PRG_mode = 1;
 
@@ -1278,6 +1313,8 @@ void PRG_start() {
 	//enters program mode
 	GPIOR0 &= ~(1 << 0); //disable clock
 	GPIOR0 |= (1 << 4); //disable color puzzle
+	GPIOR2 &= ~(1 << 2);
+
 	TIME_txt(6); //clear display
 	FastLED.clear();
 	FastLED.setBrightness(50);
@@ -1293,37 +1330,44 @@ void PRG_stop() {
 	setup();
 }
 void BAR(byte clr) {
-
-	for (byte i = 0; i < 8; i++) {
-		pix[i] = CRGB(color[clr].red, color[clr].green, color[clr].blue);
+	switch (clr) {
+	case 0: //red
+		for (byte i = 0; i < 8; i++) {
+			pix[i] = CRGB::Red;
+		}
+		break;
+	case 1: //green
+		for (byte i = 0; i < 8; i++) {
+			pix[i] = CRGB::Green;
+		}
+		break;
+	case 10:
+		FastLED.clear();
+		break;
 	}
-	fl;
+	FastLED.show(); //HIER NIET FL;
 }
 void PRG_display() {
+	BAR(10);
 	switch (PRG_mode) {
-	case 1://t1 totale speeltijd, starttijd timer bij powerup of na reset
-		BAR(3);
+	case 1://t1 totale speeltijd, starttijd timer bij powerup of na reset	
 		TIME_txt(7);
 		break;
-	case 2:
-		BAR(1);
+	case 2: //t2
 		TIME_txt(8);
 		break;
-	case 3:
-		BAR(7);
+	case 3: //t3
 		TIME_txt(9);
 		break;
 	case 4: //animatie speed
-		BAR(6);
 		TIME_txt(11);
 		break;
 	case 5: //deurcode
-		BAR(4);
 		TIME_txt(10);
 		break;
 	case 6://tixtoc on/off
 		if (MEM_reg & (1 << 1)) {
-			BAR(2);
+			BAR(1);
 		}
 		else {
 			BAR(0);
@@ -1332,7 +1376,7 @@ void PRG_display() {
 		break;
 	case 7: //beep on/off
 		if (MEM_reg & (1 << 2)) {
-			BAR(2);
+			BAR(1);
 		}
 		else {
 			BAR(0);
@@ -1344,7 +1388,7 @@ void PRG_display() {
 			BAR(0);
 		}
 		else {
-			BAR(2);
+			BAR(1);
 		}
 		TIME_txt(14);
 		break;
@@ -1447,3 +1491,5 @@ void ACT_exe(boolean time) { //activatie time true is met schakelaar
 		}
 	}
 }
+
+
