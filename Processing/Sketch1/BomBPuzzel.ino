@@ -93,7 +93,7 @@ byte bc;
 
 void setup() {
 	Serial.begin(9600);
-	FastLED.addLeds<NEOPIXEL, 4 >(pix, aantalpix);
+	FastLED.addLeds<WS2811, 4,RGB >(pix, aantalpix);
 	FastLED.addLeds<NEOPIXEL, 5 >(led, aantalled);
 
 	FastLED.setBrightness(200);
@@ -762,8 +762,8 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 
 				//set pixels 0~7 rood
 				if (PRG_mode == 0) {
-				pix[i] = CRGB(200, 10, 2); ///***************
-				//Serial.println("|");
+					pix[i] = CRGB(200, 10, 2); ///***************
+					//Serial.println("|");
 				}
 
 
@@ -849,51 +849,54 @@ void resetcounters() {
 	}
 }
 void GAME_start() {
-	GPIOR2 |= (1 << 1); //flag kleurenpuzzel is gestart
-	byte num1 = 0; byte num2 = 0; byte val = 0;
-	//Serial.println("game start");
-	//makes new game
-	//clear all assigned colors
-	for (byte i = 0; i < 16; i++) {
-		pixcolor[i] = 0xFF;
-	}
-	//assign random colors to pix
-	for (byte i = 0; i < 16; i++) {
-		rndm[i] = i;
-		//Serial.print(rndm[i]); Serial.print("  ");
-	}
-	//Serial.println("");
-	for (byte i = 0; i < 100; i++) {
-		num1 = random(0, 16);
-		num2 = random(0, 16);
-		val = rndm[num1];
-		rndm[num1] = rndm[num2];
-		rndm[num2] = val;
-	}
-	for (byte i = 0; i < 16; i++) {
-		//Serial.print(rndm[i]); Serial.print("  ");
-	}
-	//Serial.println("");
+	//if (~GPIOR2 & (1 << 1)) { //one shot
 
-	for (byte v = 0; v < 8; v++) {
-		for (byte i = 0; i < 2; i++) {
-			pixcolor[rndm[v + (i * 8)]] = v;
+
+		GPIOR2 |= (1 << 1); //flag kleurenpuzzel is gestart
+		byte num1 = 0; byte num2 = 0; byte val = 0;
+		//Serial.println("game start");
+		//makes new game
+		//clear all assigned colors
+		for (byte i = 0; i < 16; i++) {
+			pixcolor[i] = 0xFF;
 		}
-	}
-	//toon kleuren
-	//for (byte i = 0; i < 16; i++) {
-		//Serial.print(pixcolor[i]); Serial.print(" ");
-	//	pix[i + 8] = CRGB(color[pixcolor[i]].red, color[pixcolor[i]].green, color[pixcolor[i]].blue);
+		//assign random colors to pix
+		for (byte i = 0; i < 16; i++) {
+			rndm[i] = i;
+			//Serial.print(rndm[i]); Serial.print("  ");
+		}
+		//Serial.println("");
+		for (byte i = 0; i < 100; i++) {
+			num1 = random(0, 16);
+			num2 = random(0, 16);
+			val = rndm[num1];
+			rndm[num1] = rndm[num2];
+			rndm[num2] = val;
+		}
+		for (byte i = 0; i < 16; i++) {
+			//Serial.print(rndm[i]); Serial.print("  ");
+		}
+		//Serial.println("");
+
+		for (byte v = 0; v < 8; v++) {
+			for (byte i = 0; i < 2; i++) {
+				pixcolor[rndm[v + (i * 8)]] = v;
+			}
+		}
+		//toon kleuren
+		//for (byte i = 0; i < 16; i++) {
+			//Serial.print(pixcolor[i]); Serial.print(" ");
+		//	pix[i + 8] = CRGB(color[pixcolor[i]].red, color[pixcolor[i]].green, color[pixcolor[i]].blue);
+		//}
+
+		//Serial.println("");
+		GPIOR0 &= ~(1 << 3); //einde game start
+		GPIOR0 |= (1 << 5); //check for connections
+
+		// animatie starten
+		ANIM_fase = 1;
+		resetcounters();
 	//}
-
-	//Serial.println("");
-	GPIOR0 &= ~(1 << 3); //einde game start
-	GPIOR0 |= (1 << 5); //check for connections
-
-	// animatie starten
-	ANIM_fase = 1;
-	resetcounters();
-
 }
 void GAME_stop() {
 	//timer afgelopen op 0
@@ -955,7 +958,7 @@ void SW_on(byte sw) {
 	}
 }
 void SW_off(byte sw) {
-	Serial.print("Uit: "); Serial.println(sw);
+	//Serial.print("Uit: "); Serial.println(sw);
 	switch (sw) {
 	case 1:
 		break;
@@ -986,7 +989,7 @@ void ANIM_exe() {
 		FastLED.clear();
 		if (ANIM_count[0] > 10) { //timer 10x20ms
 			ANIM_count[0] = 0;
-			Serial.print(ANIM_count[1]);
+			//Serial.print(ANIM_count[1]);
 
 			if (ANIM_count[1] > 7) {
 				ANIM_count[1] = 0;
