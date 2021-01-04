@@ -18,7 +18,7 @@
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
 
 byte kolom[4];
-byte row; 
+//byte row; 
 byte rowcount;
 unsigned long SWcount;
 
@@ -55,8 +55,22 @@ void setup() {
 
 	//ports//
 	DDRB |= (7 << 0);
-	DDRD |= (120 << 0); //pin7,6,5,4 as output
-	PORTC |= (15 << 0); //pull ups to pins A0~A3
+
+	DDRD |= (1 << 7); //pin7,6,5,4 as output
+	DDRD |= (1 << 6); //pin7,6,5,4 as output
+	DDRD |= (1 << 5); //pin7,6,5,4 as output
+	DDRD |= (1 << 4); //pin7,6,5,4 as output
+
+	//DDRC &= ~(15 << 0); //portc input
+
+	//PORTC |= (15 << 0); //pull ups to pins A0~A3
+
+	//other initialise
+	for (byte i = 0; i < 4; i++) {
+		kolom[i] = 0xFF;
+	}
+
+
 }
 
 
@@ -86,11 +100,52 @@ void loop() {
 */
 }
 void SW_exe() {	
+//	byte a;
 	byte status = 0; byte changed = 0;
-	PORTD &= ~(15 << 0);//clear row pins
-	PORTD |= (1 << rowcount);
+	
+//Serial.print(status,BIN);
 	status = PINC;
+	status = status << 4;
+	status = status >> 4;
+
+	
+	changed = status ^ kolom[rowcount];
+	
+	
+
+	if (changed > 0) {
+		Serial.print("*");
+
+		for (byte i = 0; i < 4; i++) {
+
+			if (changed & (1 << i)) {
+				if (status & (1 << i)) { //ingedrukt
+					SW_off(i +(rowcount*4));
+				}
+				else { //losgelaten
+					SW_on(i + (rowcount*4));
+				}
+			}
+		}
+	}
+
+	kolom[rowcount] = status;
 
 
 
+	PORTD &= ~(1 << 7);//clear row pins
+	PORTD &= ~(1 << 6);//clear row pins
+	PORTD &= ~(1 << 5);//clear row pins
+	PORTD &= ~(1 << 4);//clear row pins
+	PORTD |= (1 << (7 - rowcount));
+	rowcount++;
+	if (rowcount > 3)rowcount = 0;
+}
+void SW_on(byte sw) {
+	Serial.print("Aan: ");
+	Serial.println(sw);
+}
+void SW_off(byte sw) {
+	Serial.print("Uit: ");
+	Serial.println(sw);
 }
