@@ -24,18 +24,26 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EEPROM-2.0", "Libraries\EEP
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BrideExit", "BrideExit\BrideExit.vcxproj", "{01EEE2D7-9595-434A-9AE3-7A918AC10506}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Wire-1.0", "Libraries\Wire\1.0\Wire\Wire-1.0.vcxitems", "{CD669A47-28C2-429C-8AED-A17DA27A2DB3}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SPI-1.0", "Libraries\SPI\1.0\SPI\SPI-1.0.vcxitems", "{7E34CDCA-6DDE-4255-9BFF-6D1BA0773E73}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		Libraries\Adafruit_GFX_Library\1.7.5\Adafruit_GFX_Library\Adafruit_GFX_Library-1.7.5.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
 		Libraries\Adafruit_SSD1306\2.1.0\Adafruit_SSD1306\Adafruit_SSD1306-2.1.0.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
+		Libraries\SPI\1.0\SPI\SPI-1.0.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
+		Libraries\Wire\1.0\Wire\Wire-1.0.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
 		Libraries\FastLED-master\3.1.6\FastLED-master\FastLED-master-3.1.6.vcxitems*{08d2381f-8643-4a7a-bfd3-88d40931953c}*SharedItemsImports = 9
 		Libraries\Adafruit_GFX_Library\1.7.5\Adafruit_GFX_Library\Adafruit_GFX_Library-1.7.5.vcxitems*{4fad0e82-26f8-465a-b004-6475e1595dbf}*SharedItemsImports = 9
+		Libraries\SPI\1.0\SPI\SPI-1.0.vcxitems*{7e34cdca-6dde-4255-9bff-6d1ba0773e73}*SharedItemsImports = 9
 		Libraries\Adafruit_SSD1306\2.1.0\Adafruit_SSD1306\Adafruit_SSD1306-2.1.0.vcxitems*{a9386729-756b-4b91-94cb-681a3844045f}*SharedItemsImports = 9
 		Libraries\EEPROM\2.0\EEPROM\EEPROM-2.0.vcxitems*{b4ba5c46-76b5-46e0-a14f-094289aa0512}*SharedItemsImports = 4
 		Libraries\FastLED-master\3.1.6\FastLED-master\FastLED-master-3.1.6.vcxitems*{b4ba5c46-76b5-46e0-a14f-094289aa0512}*SharedItemsImports = 4
 		Sketch1\Libraries\EEPROM\2.0\EEPROM\EEPROM-2.0.vcxitems*{b4ba5c46-76b5-46e0-a14f-094289aa0512}*SharedItemsImports = 4
 		Libraries\Adafruit_GFX_Library\1.7.5\Adafruit_GFX_Library\Adafruit_GFX_Library-1.7.5.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
 		Libraries\Adafruit_SSD1306\2.1.0\Adafruit_SSD1306\Adafruit_SSD1306-2.1.0.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
+		Libraries\Wire\1.0\Wire\Wire-1.0.vcxitems*{cd669a47-28c2-429c-8aed-a17da27a2db3}*SharedItemsImports = 9
 		Libraries\EEPROM\2.0\EEPROM\EEPROM-2.0.vcxitems*{f6ec6088-2182-4314-bd98-faf2b9db2fbd}*SharedItemsImports = 9
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
