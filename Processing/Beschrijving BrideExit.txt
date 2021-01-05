@@ -1,0 +1,11 @@
+Puzzel
+invoeren 6 cyfer code laat gedurebde 20sec een relais opkomen die de stroom naar de deur magneet onderbreekt.
+Hierdoor kan de deur open.
+
+EEPROM
+100~105 code cyfers 100=msb 105 lsb
+
+
+General purpose
+GPIOR0
+bit0 request display display true

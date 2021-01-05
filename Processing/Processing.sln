@@ -32,6 +32,7 @@ Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		Libraries\Adafruit_GFX_Library\1.7.5\Adafruit_GFX_Library\Adafruit_GFX_Library-1.7.5.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
 		Libraries\Adafruit_SSD1306\2.1.0\Adafruit_SSD1306\Adafruit_SSD1306-2.1.0.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
+		Libraries\EEPROM\2.0\EEPROM\EEPROM-2.0.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
 		Libraries\SPI\1.0\SPI\SPI-1.0.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
 		Libraries\Wire\1.0\Wire\Wire-1.0.vcxitems*{01eee2d7-9595-434a-9ae3-7a918ac10506}*SharedItemsImports = 4
 		Libraries\FastLED-master\3.1.6\FastLED-master\FastLED-master-3.1.6.vcxitems*{08d2381f-8643-4a7a-bfd3-88d40931953c}*SharedItemsImports = 9
