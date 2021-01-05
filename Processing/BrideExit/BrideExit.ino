@@ -42,45 +42,28 @@ void setup() {
 		display.print(“message”) – print the characters at location x, y
 		display.display() – call this method for the changes to make effect
 */
-	delay(500);
+	//delay(500);
 	display.clearDisplay();
 	display.setTextColor(WHITE);
 	display.setTextSize(1);
 	display.setCursor(10, 10);
-	//display.clearDisplay();
-	//display.setTextSize(1);
-	//display.setCursor(5, 5);
 	display.print("Hallo Davin");
 	display.display();
 
 	//ports//
-	DDRB |= (7 << 0);
-
-	DDRD |= (1 << 7); //pin7,6,5,4 as output
-	DDRD |= (1 << 6); //pin7,6,5,4 as output
-	DDRD |= (1 << 5); //pin7,6,5,4 as output
-	DDRD |= (1 << 4); //pin7,6,5,4 as output
-
-	//DDRC &= ~(15 << 0); //portc input
-
-	//PORTC |= (15 << 0); //pull ups to pins A0~A3
-
+	DDRB |= (15 << 0);
+	PORTB |= (1 << 3); //relais off
+	DDRD |= (240 << 0); //pin7,6,5,4 as output
 	//other initialise
 	for (byte i = 0; i < 4; i++) {
 		kolom[i] = 0xFF;
 	}
-
-
 }
-
-
 void loop() {
 	if (millis() - SWcount > 10) {
 		SWcount = millis();
 		SW_exe();
 	}
-
-
 	/*
 
 	if (millis()-tijd > 1000) {
@@ -106,46 +89,127 @@ void SW_exe() {
 //Serial.print(status,BIN);
 	status = PINC;
 	status = status << 4;
-	status = status >> 4;
-
-	
+	status = status >> 4;	
 	changed = status ^ kolom[rowcount];
-	
-	
-
 	if (changed > 0) {
-		Serial.print("*");
-
+		//Serial.print("*");
 		for (byte i = 0; i < 4; i++) {
-
 			if (changed & (1 << i)) {
 				if (status & (1 << i)) { //ingedrukt
-					SW_off(i +(rowcount*4));
+					SW_on(i +(rowcount*4));
 				}
 				else { //losgelaten
-					SW_on(i + (rowcount*4));
+					//SW_off(i + (rowcount*4));
 				}
 			}
 		}
 	}
 
 	kolom[rowcount] = status;
-
-
-
-	PORTD &= ~(1 << 7);//clear row pins
-	PORTD &= ~(1 << 6);//clear row pins
-	PORTD &= ~(1 << 5);//clear row pins
-	PORTD &= ~(1 << 4);//clear row pins
-	PORTD |= (1 << (7 - rowcount));
 	rowcount++;
 	if (rowcount > 3)rowcount = 0;
+
+	PORTD &= ~(240 << 0);//clear row pins
+	PORTD |= (1 << (7 - rowcount));
+
 }
 void SW_on(byte sw) {
-	Serial.print("Aan: ");
-	Serial.println(sw);
+	byte key;
+	key = Keypress(sw);
+	switch (key) {
+	case 1:
+		rood();
+		break;
+	case 2:
+		groen();
+		break;
+	case 3:
+		blauw();
+		break;
+	case 10: //A
+		ledoff();
+		break;
+	case 14:
+		PORTB |= (1 << 3);
+		break;
+	case 15:
+		PORTB &=~(1 << 3);
+		break;
+	}	
+	Serial.print("key: ");
+	Serial.println(key);
+}
+byte Keypress(byte sw) {
+	byte KP=0;
+	switch (sw) {
+	case 0:
+		KP = 13; //D
+		break;
+	case 1:
+		KP = 15; //#
+		break;
+	case 2:
+		KP = 0; //0
+		break;
+	case 3:
+		KP = 14 ; //*
+		break;
+	case 4:
+		KP = 12; //C
+		break;
+	case 5:
+		KP = 9; //*
+		break;
+	case 6:
+		KP = 8;
+		break;
+	case 7:
+		KP = 7;
+
+		break;
+	case 8:
+		KP = 11; //B
+		break;
+	case 9:
+		KP = 6; 
+		break;
+	case 10:
+		KP = 5; 
+		break;
+	case 11:
+		KP = 4;
+		break;
+	case 12:
+		KP = 10; //A
+		break;
+	case 13:
+		KP = 3; 
+		break;
+	case 14:
+		KP = 2;
+		break;
+	case 15:
+		KP = 1;
+		break;
+	}
+	return KP;
 }
 void SW_off(byte sw) {
 	Serial.print("Uit: ");
 	Serial.println(sw);
+}
+void rood() {
+	PORTB &= ~(6 << 0);
+	PORTB |= (1 << 0);
+}
+void groen() {
+	PORTB &= ~(5 << 0);
+	PORTB |= (1 << 1);
+}
+void blauw() {
+	PORTB &= ~(3 << 0);
+	PORTB |= (1 << 2);
+}
+void ledoff() {
+	PORTB &= ~(7 << 0);
 }
