@@ -9,3 +9,8 @@ EEPROM
 General purpose
 GPIOR0
 bit0 request display display true
+bit1 6 digits ingevoerd
+bit2 solved true, start timer
+bit3 # typed, ingevoerd voor programmeer mode
+bit4 # typed, eerste byte al ingeven true 
+bit 5 
