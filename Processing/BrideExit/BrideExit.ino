@@ -10,8 +10,6 @@
  */
 
 //libraries
-
-
 #include <EEPROM.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -28,7 +26,6 @@ byte rowcount;
 unsigned long SWcount;
 unsigned long opentime;
 byte opencount;
-
 
 byte code[6]; //entry code can be changed 0=msb 5=lsb
 byte codedefault[6] = { 1,2,5,5,4,0 }; //bit0 = MSB
