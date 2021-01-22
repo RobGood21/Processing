@@ -47,5 +47,5 @@ common register GPIOR2
 bit0 tic (true) toc(false)
 bit1 Kleurenpuzzel is gestart nodig voor automatische start true =gestart
 bit2 one shot shows control led before game started withou t showing the ledstrip
-
-
+bit3 one shot only 1 start of puzzle 
+bit 4 game lezen om enkele shift actie

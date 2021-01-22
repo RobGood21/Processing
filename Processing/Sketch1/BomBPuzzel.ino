@@ -8,6 +8,13 @@
  15jan2021
  Smart leds op uiteindelijk puzzel zitten in omgekeerde volgorde, daarom bij iedere redefinitie van pixels "23- " toegevoegd.
 
+ 22jan2021
+ Groot probleem met statische ontladingen op de banana entrees. 
+ Opgelost door hardware koppelen met optocouplers.
+ Gebleken dat de TLP281-4 te langzaam uitdoofde daarom het lezen van de gamebits, de banana entrees dus, niet in iedere shiftactie te doen, maar om en om. 
+ Dit is de GPIOR2 bit4. Schijnt de oplossing te zijn. Verder weerstanden veranderd naar arrays voor meer ruimte.
+
+
 */
 
 //libraries
@@ -88,14 +95,14 @@ byte PRG_mode;
 byte PRG_memsw;
 
 //temps
-
+int tempcount;
 byte pixcount;
 byte bc;
 
 
 void setup() {
 	Serial.begin(9600);
-	FastLED.addLeds<WS2811, 4,RGB >(pix, aantalpix);
+	FastLED.addLeds<WS2811, 4, RGB >(pix, aantalpix);
 	FastLED.addLeds<NEOPIXEL, 5 >(led, aantalled);
 
 	FastLED.setBrightness(200);
@@ -334,8 +341,10 @@ void TIME_clock() {
 
 	ledstatus &= ~(1 << 0);
 	ledstatus &= ~(1 << 1);
-	if (TIME_act > TIME_current)ledstatus |= (1 << 0); //set oranje controlled
-	if (TIME_end + 60 > TIME_current)ledstatus |= (1 << 1); //set red control led
+	if (hourcurrent == 0) {
+		if (TIME_act > TIME_current)ledstatus |= (1 << 0); //set oranje controlled
+		if (TIME_end + 60 > TIME_current)ledstatus |= (1 << 1); //set red control led
+	}
 	if (TIME_current == 0)GAME_stop();
 	if (ANIM_fase == 0) fl; //*******************
 }
@@ -635,20 +644,27 @@ void TIME_txt(byte txt) {
 	}
 }
 void SHIFT_exe() {
+	//PORTB &= ~(1 << 2); PINB |= (1 << 2);
+	//tempcount++;
+	//if (tempcount == 0)Serial.print("+");
 	//shift out continue and reads switches and game 
 	//port D6 = serial out, port B0 pin 8 = shiftpuls port B1 Pin9 = latch sipo
 	//pin10= latch piso (high>low)
 	PORTD &= ~(1 << 6); //clear serial pin
 	if (shiftbyte[bytecount] & (1 << bitcount))PORTD |= (1 << 6); //set serial pin
 
-	//hier lezen shiftout bit
-	switch (bytecount) {
-	case 0:
-		if (PIND & (1 << 7)) gamebyte[1] |= (1 << bitcount);
-		break;
-	case 1:
-		if (PIND & (1 << 7)) gamebyte[0] |= (1 << bitcount);
-		break;
+
+	//hier lezen shiftout bit naar game bytes
+
+	if (GPIOR2 & (1 << 4)) {
+		switch (bytecount) {
+		case 0:
+			if (PIND & (1 << 7)) gamebyte[1] |= (1 << bitcount);
+			break;
+		case 1:
+			if (PIND & (1 << 7)) gamebyte[0] |= (1 << bitcount);
+			break;
+		}
 	}
 
 	PORTB |= (1 << 0); PINB |= (1 << 0); //make shift puls
@@ -658,19 +674,31 @@ void SHIFT_exe() {
 		bitcount = 0;
 		bytecount++;
 
+		if (bytecount > 3) { //alle bytes
 
-		switch (bytecount) {
-		case 4: //alle bytes verzonden
+			GPIOR2 ^= (1 << 4); //lezen game 1x per 2 doorlopen ///************
+
 
 			if (millis() - ANIM_tijd > ANIM_speed) { //timer animaties
 				ANIM_exe();
 				ANIM_tijd = millis();
 			}
-			if (~GPIOR0 & (1 << 6)) GAME_read(); //game stops in end play
+
+			if (GPIOR2 & (1 << 4)) {
+				if (~GPIOR0 & (1 << 6)) GAME_read(); //game stops in end play
+			}
+			//****
+			//hier byte 0 en byte 1 0 maken?
+
 
 			bytecount = 0;
 			PORTB |= (1 << 1); PINB |= (1 << 1); //make latch puls sipo pin 9
-			PORTB &= ~(1 << 2); PINB |= (1 << 2); //latch puls piso pin 10
+
+			//hier tijd tussen creeren? naar onderen verplaatst
+			//denkbaar dat in inlatchen van piso op een flank van de sipo plaats vindt????
+			//20jan2021 defect piso1 veroorzaakt sluiting in de VCC shiftproces gestopt.
+			//Zeer ernstige complicatie niet bekend waarom.
+			//PORTB &= ~(1 << 2);PINB |= (1 << 2); //latch puls piso pin 10
 
 			//next digit
 			segmentcount++;
@@ -679,21 +707,33 @@ void SHIFT_exe() {
 			shiftbyte[3] = 0xFF;
 			shiftbyte[3] &= ~(1 << 7 - segmentcount);
 
-			//gamebytes			
-			gamebit--;
-			shiftbyte[gamebytecount] = shiftbyte[gamebytecount] << 1;
-			if (shiftbyte[gamebytecount] == 0) {
-				gamebytecount++;
-				if (gamebytecount > 1) {
-					gamebytecount = 0;
-					gamebit = 16;
+
+			if (GPIOR2 & (1 << 4)) {
+
+				//gamebytes			
+				gamebit--;
+				shiftbyte[gamebytecount] = shiftbyte[gamebytecount] << 1;
+				if (shiftbyte[gamebytecount] == 0) {
+					gamebytecount++;
+					if (gamebytecount > 1) {
+						gamebytecount = 0;
+						gamebit = 16;
+					}
+					shiftbyte[gamebytecount] = 1;
 				}
-				shiftbyte[gamebytecount] = 1;
+
+				PORTB &= ~(1 << 2); PINB |= (1 << 2); //latch puls piso pin 10 verplaatst naar boven
 			}
-			break;
-		}
-	}
+
+		} //bytecount>3
+	} //bitcount >>7
 }
+
+void clearbits() {
+
+
+}
+
 void GAME_read() { //leest de verbindingen, called shift_exe
 	//grs++;
 	boolean nw = false;
@@ -750,6 +790,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 	//Serial.println(gamebit);
 	if (gamebit == 16) {
 		if (GPIOR0 & (1 << 3)) { //make new kleuren game
+			Serial.println("Gameread");
 			GAME_start();
 		}
 		else {
@@ -764,7 +805,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 
 				//set pixels 0~7 rood
 				if (PRG_mode == 0) {
-					pix[23-i] = CRGB(200, 10, 2); ///***************
+					pix[23 - i] = CRGB(200, 10, 2); ///***************
 					//Serial.println("|");
 				}
 
@@ -789,7 +830,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 
 			if (PRG_mode == 0) { //**************************************
 				for (byte c = 0; c < cc; c++) {
-					pix[23-c] = CRGB(3, 200, 3);
+					pix[23 - c] = CRGB(3, 200, 3);
 				}
 			}
 
@@ -798,8 +839,8 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 				px1 = con[i].first; px2 = con[i].second;
 
 				if (con[i].cnt == true & PRG_mode == 0) {// & GPIOR0 & (1 << 4)) {
-					pix[23-(px1 + 8)] = CRGB(color[pixcolor[px1]].red, color[pixcolor[px1]].green, color[pixcolor[px1]].blue);
-					pix[23-(px2 + 8)] = CRGB(color[pixcolor[px2]].red, color[pixcolor[px2]].green, color[pixcolor[px2]].blue);
+					pix[23 - (px1 + 8)] = CRGB(color[pixcolor[px1]].red, color[pixcolor[px1]].green, color[pixcolor[px1]].blue);
+					pix[23 - (px2 + 8)] = CRGB(color[pixcolor[px2]].red, color[pixcolor[px2]].green, color[pixcolor[px2]].blue);
 					//Serial.print("*");
 				}
 				con[i].first = 0;
@@ -854,50 +895,50 @@ void GAME_start() {
 	//if (~GPIOR2 & (1 << 1)) { //one shot
 
 
-		GPIOR2 |= (1 << 1); //flag kleurenpuzzel is gestart
-		byte num1 = 0; byte num2 = 0; byte val = 0;
-		//Serial.println("game start");
-		//makes new game
-		//clear all assigned colors
-		for (byte i = 0; i < 16; i++) {
-			pixcolor[i] = 0xFF;
-		}
-		//assign random colors to pix
-		for (byte i = 0; i < 16; i++) {
-			rndm[i] = i;
-			//Serial.print(rndm[i]); Serial.print("  ");
-		}
-		//Serial.println("");
-		for (byte i = 0; i < 100; i++) {
-			num1 = random(0, 16);
-			num2 = random(0, 16);
-			val = rndm[num1];
-			rndm[num1] = rndm[num2];
-			rndm[num2] = val;
-		}
-		for (byte i = 0; i < 16; i++) {
-			//Serial.print(rndm[i]); Serial.print("  ");
-		}
-		//Serial.println("");
+	GPIOR2 |= (1 << 1); //flag kleurenpuzzel is gestart
+	byte num1 = 0; byte num2 = 0; byte val = 0;
+	//Serial.println("game start");
+	//makes new game
+	//clear all assigned colors
+	for (byte i = 0; i < 16; i++) {
+		pixcolor[i] = 0xFF;
+	}
+	//assign random colors to pix
+	for (byte i = 0; i < 16; i++) {
+		rndm[i] = i;
+		//Serial.print(rndm[i]); Serial.print("  ");
+	}
+	//Serial.println("");
+	for (byte i = 0; i < 100; i++) {
+		num1 = random(0, 16);
+		num2 = random(0, 16);
+		val = rndm[num1];
+		rndm[num1] = rndm[num2];
+		rndm[num2] = val;
+	}
+	for (byte i = 0; i < 16; i++) {
+		//Serial.print(rndm[i]); Serial.print("  ");
+	}
+	//Serial.println("");
 
-		for (byte v = 0; v < 8; v++) {
-			for (byte i = 0; i < 2; i++) {
-				pixcolor[rndm[v + (i * 8)]] = v;
-			}
+	for (byte v = 0; v < 8; v++) {
+		for (byte i = 0; i < 2; i++) {
+			pixcolor[rndm[v + (i * 8)]] = v;
 		}
-		//toon kleuren
-		//for (byte i = 0; i < 16; i++) {
-			//Serial.print(pixcolor[i]); Serial.print(" ");
-		//	pix[i + 8] = CRGB(color[pixcolor[i]].red, color[pixcolor[i]].green, color[pixcolor[i]].blue);
-		//}
+	}
+	//toon kleuren
+	//for (byte i = 0; i < 16; i++) {
+		//Serial.print(pixcolor[i]); Serial.print(" ");
+	//	pix[i + 8] = CRGB(color[pixcolor[i]].red, color[pixcolor[i]].green, color[pixcolor[i]].blue);
+	//}
 
-		//Serial.println("");
-		GPIOR0 &= ~(1 << 3); //einde game start
-		GPIOR0 |= (1 << 5); //check for connections
+	//Serial.println("");
+	GPIOR0 &= ~(1 << 3); //einde game start
+	GPIOR0 |= (1 << 5); //check for connections
 
-		// animatie starten
-		ANIM_fase = 1;
-		resetcounters();
+	// animatie starten
+	ANIM_fase = 1;
+	resetcounters();
 	//}
 }
 void GAME_stop() {
@@ -973,8 +1014,13 @@ void SW_off(byte sw) {
 		break;
 	case 4:
 		//GPIOR0 |= (24 << 0); // start new game setup
-		GPIOR0 |= (1 << 3); //start gamestart
-		GPIOR0 |= (1 << 4); //disable game
+		if (~GPIOR2 & (1 << 3)) {
+			Serial.println("Switch 4 off");
+			GPIOR0 |= (1 << 3); //start gamestart
+			GPIOR0 |= (1 << 4); //disable game
+			GPIOR2 |= (1 << 3);
+		}
+
 		break;
 	case 5:
 		//PRG_stop();
@@ -1007,7 +1053,7 @@ void ANIM_exe() {
 				for (byte i = 0; i < 16; i++) {
 
 					if (pixcolor[i] == ANIM_count[1]) {
-						pix[23-(i + 8)] = CRGB(color[ANIM_count[1]].red, color[ANIM_count[1]].green, color[ANIM_count[1]].blue);
+						pix[23 - (i + 8)] = CRGB(color[ANIM_count[1]].red, color[ANIM_count[1]].green, color[ANIM_count[1]].blue);
 						fl;
 					}
 				}
@@ -1056,7 +1102,7 @@ void ANIM_exe() {
 				ANIM_count[4] = 30; //Code
 				FastLED.clear();
 				for (byte i = 0; i < 25; i++) {
-					pix[23-i] = CRGB(1, 5, 1);
+					pix[23 - i] = CRGB(1, 5, 1);
 				}
 				fl;
 				break;
@@ -1075,7 +1121,7 @@ void ANIM_exe() {
 		switch (ANIM_count[1]) { //leds animation
 		case 2: //reboot
 			FastLED.clear();
-			pix[23-(ANIM_count[3])] = CRGB::Red;
+			pix[23 - (ANIM_count[3])] = CRGB::Red;
 			ANIM_count[3]++;
 			if (ANIM_count[3] > aantalpix)ANIM_count[3] = 0;
 			fl;
@@ -1089,7 +1135,7 @@ void ANIM_exe() {
 				FastLED.clear();
 				if (GPIOR1 & (1 << 2)) {
 					for (byte i = 0; i < 25; i++) {
-						pix[23-i] = CRGB(255, 0, 0);
+						pix[23 - i] = CRGB(255, 0, 0);
 					}
 				}
 				fl;
@@ -1112,7 +1158,7 @@ void ANIM_exe() {
 			ANIM_count[0] = 0;
 			ANIM_count[3]++;
 			for (byte i = 0; i < 25; i++) {
-				pix[23-i] = CRGB(200, 0, 0);
+				pix[23 - i] = CRGB(200, 0, 0);
 			}
 			fl;
 		}
@@ -1125,7 +1171,7 @@ void ANIM_exe() {
 			ANIM_count[4] = 15; //interval
 			ANIM_count[0] = 0;
 			for (byte i = 0; i < 25; i++) {
-				pix[23-i] = CRGB(0, 30, 0);
+				pix[23 - i] = CRGB(0, 30, 0);
 			}
 			fl;
 		}
@@ -1134,7 +1180,7 @@ void ANIM_exe() {
 		if (ANIM_count[0] > 220) {
 			ANIM_fase = 31;
 			for (byte i = 0; i < 25; i++) {
-				pix[23-i] = CRGB(0, 30, 0);
+				pix[23 - i] = CRGB(0, 30, 0);
 			}
 			fl;
 			TIME_txt(5);
@@ -1147,7 +1193,7 @@ void ANIM_exe() {
 		break;
 	case 41:
 		for (byte i; i < aantalpix; i++) {
-			pix[23-i] = CRGB(0xFFFFFF);
+			pix[23 - i] = CRGB(0xFFFFFF);
 		}
 		fl;
 		//FastLED.show();
@@ -1340,12 +1386,12 @@ void BAR(byte clr) {
 	switch (clr) {
 	case 0: //red
 		for (byte i = 0; i < 8; i++) {
-			pix[23-i] = CRGB::Red;
+			pix[23 - i] = CRGB::Red;
 		}
 		break;
 	case 1: //green
 		for (byte i = 0; i < 8; i++) {
-			pix[23-i] = CRGB::Green;
+			pix[23 - i] = CRGB::Green;
 		}
 		break;
 	case 10:
