@@ -9,10 +9,12 @@
  Smart leds op uiteindelijk puzzel zitten in omgekeerde volgorde, daarom bij iedere redefinitie van pixels "23- " toegevoegd.
 
  22jan2021
- Groot probleem met statische ontladingen op de banana entrees. 
+ Groot probleem met statische ontladingen op de banana entrees.
  Opgelost door hardware koppelen met optocouplers.
- Gebleken dat de TLP281-4 te langzaam uitdoofde daarom het lezen van de gamebits, de banana entrees dus, niet in iedere shiftactie te doen, maar om en om. 
+ Gebleken dat de TLP281-4 te langzaam uitdoofde daarom het lezen van de gamebits, de banana entrees dus, niet in iedere shiftactie te doen, maar om en om.
  Dit is de GPIOR2 bit4. Schijnt de oplossing te zijn. Verder weerstanden veranderd naar arrays voor meer ruimte.
+
+ Versie 2.0
 
 
 */
@@ -43,6 +45,7 @@ struct colors
 	byte blue;
 	boolean free = false;
 }; colors color[8];
+
 
 unsigned int TIME_current;
 byte TIME_gamehr;
@@ -93,6 +96,8 @@ byte LED_count[3];
 byte LED_fase;
 byte PRG_mode;
 byte PRG_memsw;
+//***version 2.0
+byte TicTocMode;
 
 //temps
 int tempcount;
@@ -102,6 +107,7 @@ byte bc;
 
 void setup() {
 	Serial.begin(9600);
+
 	FastLED.addLeds<WS2811, 4, RGB >(pix, aantalpix);
 	FastLED.addLeds<NEOPIXEL, 5 >(led, aantalled);
 
@@ -122,10 +128,13 @@ void setup() {
 	TCCR2B = 0x00;
 	TCCR2B |= (1 << 2);//prescaler	
 	//TIMSK1 |= (3 << 0);	*****DEZE NIET AANZETTEN***
+
 	GPIOR0 = 0;//reset general purpose registers
 	GPIOR1 = 0;
 	GPIOR2 = 0;
+
 	SW_status = 0xFF;
+
 	MEM_read();
 	TIME_init();
 	COLOR_set();
@@ -150,7 +159,6 @@ void setup() {
 	FastLED.clear();
 	fl;
 }
-
 
 void loop() {
 	SHIFT_exe();
@@ -244,6 +252,11 @@ void MEM_read() {
 	TUP = EEPROM.read(116);
 	if (TUP > 20)TUP = 10;
 
+	TicTocMode = EEPROM.read(120);
+	if (TicTocMode > 3)TicTocMode = 3; //default start op kleurenpuzzel start
+
+	if (TicTocMode == 1)GPIOR2 |=(1<<5); //TicoToc enabled at startup
+
 	//Serial.println(" ");
 }
 
@@ -268,6 +281,7 @@ void MEM_write() {
 	}
 	//animatie snelheid
 	EEPROM.update(115, ANIM_speed);
+	EEPROM.update(120, TicTocMode);
 }
 
 void COLOR_set() {
@@ -314,7 +328,11 @@ void TIME_init() {
 void TIME_clock() {
 
 	if (~GPIOR1 & (1 << 6)) { //alleen als buzzer vrij is
-		if (MEM_reg & (1 << 1)) TIK_on(); //Hier kan nog een instelling komen
+
+		//if (MEM_reg & (1 << 1)) TIK_on(); //Hier kan nog een instelling komen
+		//Serial.print("-");
+		if (GPIOR2 & (1 << 5))TIK_on();
+
 	}
 	ledstatus ^= (1 << 2); //knipper green led 
 
@@ -342,12 +360,17 @@ void TIME_clock() {
 	ledstatus &= ~(1 << 0);
 	ledstatus &= ~(1 << 1);
 	if (hourcurrent == 0) {
+		//V2.0 TicToc start op activate
+		if (TIME_act-1 == TIME_current && TicTocMode == 2)GPIOR2 |= (1 << 5); //enable TicToc
 		if (TIME_act > TIME_current)ledstatus |= (1 << 0); //set oranje controlled
 		if (TIME_end + 60 > TIME_current)ledstatus |= (1 << 1); //set red control led
 	}
 	if (TIME_current == 0)GAME_stop();
 	if (ANIM_fase == 0) fl; //*******************
 }
+
+
+
 void TIME_dp() { //displays the timer
 	for (byte i = 0; i < 3; i++) {
 		TIME_segments(i);
@@ -1016,6 +1039,7 @@ void SW_off(byte sw) {
 		//GPIOR0 |= (24 << 0); // start new game setup
 		if (~GPIOR2 & (1 << 3)) {
 			Serial.println("Switch 4 off");
+			if (TicTocMode == 3)GPIOR2 |= (1 << 5);
 			GPIOR0 |= (1 << 3); //start gamestart
 			GPIOR0 |= (1 << 4); //disable game
 			GPIOR2 |= (1 << 3);
@@ -1322,9 +1346,14 @@ void PRG_exe(byte sw) {
 			code[5]++;
 			if (code[5] > 9)code[5] = 0;
 			break;
+
 		case 6: //TicToc on/off
-			MEM_reg ^= (1 << 1);
+			TicTocMode++;
+			if (TicTocMode > 3)TicTocMode = 0;
+			//MEM_reg ^= (1 << 1);
 			break;
+
+
 		case 7: //beep on/off
 			MEM_reg ^= (1 << 2);
 			break;
@@ -1394,6 +1423,17 @@ void BAR(byte clr) {
 			pix[23 - i] = CRGB::Green;
 		}
 		break;
+	case 2:
+		for (byte i = 0; i < 8; i++) {
+			pix[23 - i] = CRGB::Blue;
+		}
+		break;
+	case 3:
+		for (byte i = 0; i < 8; i++) {
+			pix[23 - i] = CRGB::Purple;
+		}
+		break;
+
 	case 10:
 		FastLED.clear();
 		break;
@@ -1418,15 +1458,13 @@ void PRG_display() {
 	case 5: //deurcode
 		TIME_txt(10);
 		break;
-	case 6://tixtoc on/off
-		if (MEM_reg & (1 << 1)) {
-			BAR(1);
-		}
-		else {
-			BAR(0);
-		}
+
+		//*******V2.0
+	case 6://TicToc mode
+		BAR(TicTocMode);
 		TIME_txt(12);
 		break;
+
 	case 7: //beep on/off
 		if (MEM_reg & (1 << 2)) {
 			BAR(1);
@@ -1456,10 +1494,12 @@ void PRG_display() {
 void TIK_on() {
 	//TIMSK2 |= (6 << 0);
 	//TCNT1H = 0; TCNT1L = 0;
+	//Serial.print("*");
+
 	TCNT2 = 0;
 	TCCR2B |= (1 << 3);
 	TCCR2A = B01000010;
-	GPIOR1 |= (1 << 3);
+	GPIOR1 |= (1 << 3); //TicToc
 	BEEP_stop = millis();
 	GPIOR2 ^= (1 << 0);
 	if (GPIOR2 & (1 << 0)) {

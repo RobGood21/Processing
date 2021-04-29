@@ -16,10 +16,14 @@ EEPROM
 115=ANIM_speed, snelheid van de animaties
 116 TUP aantal keren dat speellengte kan worden verhoogd met 1 minuut
 
+120 TicTocMode  0=off (red) 1=on(green) 2=start activate (blue) 3=Start Puzzel (purple)
+
+
 
 MEM_reg diverse instellingen
 bit0 Start clock on power up
-bit1 TicToc on (true, default)
+
+bit1 niet in gebruik   (oude situatie) TicToc on (true, default)
 bit2 Beep on (true, default)
 bit3 Activatie schakelt naar activatie tijd On=false off=true(default)
 
@@ -49,3 +53,4 @@ bit1 Kleurenpuzzel is gestart nodig voor automatische start true =gestart
 bit2 one shot shows control led before game started withou t showing the ledstrip
 bit3 one shot only 1 start of puzzle 
 bit 4 game lezen om enkele shift actie
+bit 5 TicToc enabled true; disabled false (V2.0) Feitelijk gaan tikken.
