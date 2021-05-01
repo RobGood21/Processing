@@ -22,10 +22,10 @@ EEPROM
 
 MEM_reg diverse instellingen
 bit0 Start clock on power up
-
-bit1 niet in gebruik   (oude situatie) TicToc on (true, default)
+bit1 Easy Mode (geen animaties) off=true on=false
 bit2 Beep on (true, default)
 bit3 Activatie schakelt naar activatie tijd On=false off=true(default)
+bit 4 Hint on (false) off(true)
 
 common register GPIOR0
 bit0 clock runs(true) on hold(false)
@@ -50,7 +50,7 @@ bit7 Fastled request(true)
 common register GPIOR2
 bit0 tic (true) toc(false)
 bit1 Kleurenpuzzel is gestart nodig voor automatische start true =gestart
-bit2 one shot shows control led before game started withou t showing the ledstrip
+bit2 ?? Leds uit tot bit is gezet
 bit3 one shot only 1 start of puzzle 
 bit 4 game lezen om enkele shift actie
 bit 5 TicToc enabled true; disabled false (V2.0) Feitelijk gaan tikken.
