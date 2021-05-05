@@ -16,9 +16,9 @@
 
  Versie 2.0
  Bugs fixed
- -Gebruik gemaakt van de Fastled functie clear (FastLed.Clear()) dit veroorzaakt vreemde fouten in de werking van FastLed. 
+ -Gebruik gemaakt van de Fastled functie clear (FastLed.Clear()) dit veroorzaakt vreemde fouten in de werking van FastLed.
  Verholpen door de pixels en leds met eigen functies te schonen (pixclear())
- 
+
 */
 
 //libraries
@@ -157,25 +157,18 @@ void setup() {
 	//Serial.println("setup");
 	//ANIM_fase = 00; //
 	ledstatus = 0;
-	//LED_fase = 10; //control lights
-	//FastLED.clear();
 	pixclear();
 	fl;
 }
 
 void loop() {
 	SHIFT_exe();
-	//****
-	   	  
-	if (millis() - slowtime > 50) { //10
+	if (millis() - slowtime > 10) { //10
 		slowtime = millis();
 		SW_exe();
-
-
 		if (GPIOR1 & (1 << 7)) { //Fastled request
 			GPIOR1 &= ~(1 << 7);
-			
-			if (GPIOR2 & (1 << 2))	pixclear();//FastLED.clear(); //clears all leds and pix
+			if (GPIOR2 & (1 << 2))pixclear();//FastLED.clear(); //clears all leds and pix
 
 			led[0] = CRGB::Black;
 			led[1] = CRGB::Black;
@@ -187,10 +180,7 @@ void loop() {
 			if (ledstatus & (1 << 3))led[1].r = 255; // Bom 
 			if (ledstatus & (1 << 4))led[1].g = 255; //Puzzel start
 			if (ledstatus & (1 << 5))led[1].b = 255; //Puzzel solved
-			//ledstatus ^= (1 << 5); //for test
-			//Serial.print("*");
-			FastLED.show();	
-
+			FastLED.show();
 		}
 	}
 	if (GPIOR0 & (1 << 0)) {
@@ -205,7 +195,6 @@ void loop() {
 			TIME_clock();
 		}
 	}
-	//****
 	if (GPIOR1 & (1 << 3))TIK_off();
 }
 void FACTORY() {
@@ -222,23 +211,22 @@ void MEM_read() {
 	if (MEM_reg & (1 << 0))GPIOR0 |= (1 << 0); //start timer on powerup	
 
 	hourtimer = EEPROM.read(110);
-	if (hourtimer > 9)hourtimer = 0; //default 1 hour
+	if (hourtimer > 9)hourtimer = 1; //default 1 hour
 	TIME_gamehr = hourtimer;
 	minutetimer = EEPROM.read(111);
-	if (minutetimer > 59) minutetimer = 6; //default =0
+	if (minutetimer > 59) minutetimer = 0; //default =0
 	TIME_gamemin = minutetimer;
-
-	TIME_game = hourtimer * 360 + minutetimer * 60;  ///dit wordt denk ik niet gebruikt....?
+	TIME_game = hourtimer * 360 + minutetimer * 60;
 
 	//activate
 	min = EEPROM.read(112);
-	if (min > 59)min = 2; //default 10minutes
+	if (min > 59)min = 10; //default 10minutes
 	TIME_act = min * 60;
 
 	//endgame
 	min = EEPROM.read(113);
 	sec = EEPROM.read(114);
-	if (min > 59)min = 1; //default 3 minutes
+	if (min > 59)min = 3; //default 3 minutes
 	if (sec > 59)sec = 0;
 	TIME_end = (min * 60) + sec;
 	//animatie snelheid 
@@ -255,20 +243,15 @@ void MEM_read() {
 	for (byte i = 0; i < 6; i++) {
 		code[i] = EEPROM.read(i + 50);
 		if (code[i] > 9) code[i] = defaultCD[i];
-		//Serial.print(code[i]);
 	}
 	TUP = EEPROM.read(116);
-	if (TUP > 20)TUP = 10;
-
+	if (TUP > 20)TUP = 5;
 	TicTocMode = EEPROM.read(120);
 	if (TicTocMode > 3)TicTocMode = 3; //default start op kleurenpuzzel start
 	if (TicTocMode == 1)GPIOR2 |= (1 << 5); //TicoToc enabled at startup
 	HintMode = EEPROM.read(121);
 	if (HintMode > 2)HintMode = 0;
-
-	//Serial.println(" ");
 }
-
 void MEM_write() {
 	EEPROM.update(100, MEM_reg);
 
@@ -293,7 +276,6 @@ void MEM_write() {
 	EEPROM.update(120, TicTocMode);
 	EEPROM.update(121, HintMode);
 }
-
 void COLOR_set() {
 	//color 0 Rood
 	color[0].red = 0xFF;
@@ -340,7 +322,7 @@ void TIME_clock() {
 		//Serial.print("-");
 		if (GPIOR2 & (1 << 5))TIK_on();
 	}
-	ledstatus ^=(1<<2); //knipper green led (1<<2)
+	ledstatus ^= (1 << 2); //knipper green led (1<<2)
 
 	//Serial.println(ledstatus); //**********************
 	if (secondcurrent == 0) {
@@ -363,7 +345,7 @@ void TIME_clock() {
 	//	if (TIME_end == TIME_current) GAME_end(); //V2.0 weggehaald, niet stoppen op time end
 
 	if (TIME_act == TIME_current + 4) ACT_exe(false);
-	
+
 	ledstatus &= ~(1 << 0); //reset activatie led  //ff uit voor testen
 	ledstatus &= ~(1 << 1); //reset last miniute led
 
@@ -379,7 +361,6 @@ void TIME_clock() {
 	//if (ANIM_fase == 0) fl; //*******************
 	fl; //V2.0
 }
-
 void TIME_dp() { //displays the timer
 	for (byte i = 0; i < 3; i++) {
 		TIME_segments(i);
@@ -841,9 +822,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 	//execute and clear results
 	//Serial.println(gamebit);
 	if (gamebit == 16) {
-		if (GPIOR0 & (1 << 3)) { //make new kleuren game, puzzelstart (ontsteker)
-			//eerst wordt dus gelezen 
-			Serial.println("Gameread");
+		if (GPIOR0 & (1 << 3)) { //make new kleuren game, puzzelstart (ontsteker)	//eerst wordt dus gelezen 
 			GAME_start();
 		}
 		else {
@@ -861,10 +840,7 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 					pix[23 - i] = CRGB(200, 10, 2); ///***************
 					//Serial.println("|");
 				}
-
-
 			}
-
 			if (GPIOR0 & (1 << 5)) { //alleen tijdens startup
 				if (cc > 0) {
 					GPIOR0 |= (1 << 3); //nieuw schema maken bij volgende doorloop
@@ -875,25 +851,18 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 					//V2.0  Hier de animatie pas starten (zie GAME_start)
 					ANIM_fase = 1;
 					resetcounters();
-
 				}
 			}
-			//Serial.print("*");
-
 			//hier ergens de schakelfunctie voor programming
 			if (PRG_mode > 0) {
 				if (cc == 0)PRG_memsw = 0;
 				if (cc == 1) PRG_sw();//Serial.println("1 verbinding");
 			}
-			//else {
-
 			if (PRG_mode == 0) { //**************************************
 				for (byte c = 0; c < cc; c++) {
 					pix[23 - c] = CRGB(3, 200, 3);
 				}
 			}
-
-
 			for (byte i = 0; i < 8; i++) {
 				px1 = con[i].first; px2 = con[i].second;
 
@@ -906,7 +875,6 @@ void GAME_read() { //leest de verbindingen, called shift_exe
 				con[i].second = 0;
 				con[i].cnt = false;
 			}
-			//}
 
 			//Serial.println(cc);
 			if (~GPIOR0 & (1 << 4)) { //aonly if color game is enabled				
@@ -945,7 +913,6 @@ void GAME_solved() { //color puzzle solved, Button 2 'solved'
 	resetcounters();
 	GPIOR0 |= (1 << 4);//disable color game
 }
-
 void resetcounters() {
 	for (byte i = 0; i < 6; i++) {
 		ANIM_count[i] = 0;
@@ -992,15 +959,7 @@ void GAME_start() { //called from GAMEread()
 	//Serial.println("");
 	GPIOR0 &= ~(1 << 3); //einde game start
 	GPIOR0 |= (1 << 5); //check for connections
-
-	// animatie starten 
-
-	//V2.0 starten animatie verplaatst naar GAME_read
-	//ANIM_fase = 1;
-	//resetcounters();
-	//}
 }
-
 void GAME_stop() { //Called from Clock
 	//timer afgelopen naar 0
 	GPIOR0 &= ~(1 << 0); //Stop de clock
@@ -1084,7 +1043,7 @@ void SW_off(byte sw) {
 		if (~GPIOR2 & (1 << 3)) {
 			//Serial.println("Switch 4 off");
 			if (TicTocMode == 3)GPIOR2 |= (1 << 5);
-			ledstatus |=(1 << 4); //Output 3 actief, alleen als ontsteker wordt verwijderd, niet bij auto-start op activatie
+			ledstatus |= (1 << 4); //Output 3 actief, alleen als ontsteker wordt verwijderd, niet bij auto-start op activatie
 			GPIOR0 |= (1 << 3); //start gamestart
 			GPIOR0 |= (1 << 4); //disable game
 			GPIOR2 |= (1 << 3);
@@ -1095,22 +1054,19 @@ void SW_off(byte sw) {
 		break;
 	}
 }
-void ANIM_exe() { //called from shift_exe		
-
+void ANIM_exe() { //called from shift_exe
 	ANIM_count[0] ++; //1 = 20ms
 	switch (ANIM_fase) {
 	case 0:
 		break;
 	case 1:
 		GPIOR2 &= ~(1 << 2);// enable fastled show 
-
 		GPIOR0 |= (1 << 6); //disable //******************
 		//FastLED.clear();
-		pixclear();
+		//pixclear();
 		if (ANIM_count[0] > 10) { //timer 10x20ms
 			ANIM_count[0] = 0;
 			//Serial.print(ANIM_count[1]);
-
 			if (ANIM_count[1] > 7) { //alle 7 combies getoond, start game
 				ANIM_count[1] = 0;
 				ANIM_fase = 0;
@@ -1120,8 +1076,8 @@ void ANIM_exe() { //called from shift_exe
 			}
 			else {
 				//Serial.println(ANIM_count[1]);
+				pixclear(); //V2.00
 				for (byte i = 0; i < 16; i++) {
-
 					if (pixcolor[i] == ANIM_count[1]) {
 						pix[23 - (i + 8)] = CRGB(color[ANIM_count[1]].red, color[ANIM_count[1]].green, color[ANIM_count[1]].blue);
 						fl;
@@ -1169,7 +1125,7 @@ void ANIM_exe() { //called from shift_exe
 				GPIOR0 |= (1 << 0); //start clock				
 				ANIM_count[4] = 80; //Escape 80
 				break;
-			case 4:			
+			case 4:
 				ANIM_count[4] = 30; //Code 30
 				//FastLED.clear();
 				pixclear();
@@ -1209,7 +1165,7 @@ void ANIM_exe() { //called from shift_exe
 
 				//FastLED.clear();
 				pixclear();
-				
+
 				if (GPIOR1 & (1 << 2)) {
 					for (byte i = 0; i < 24; i++) { //25?
 						pix[23 - i] = CRGB(255, 0, 0);
@@ -1321,7 +1277,6 @@ void ANIM_exe() { //called from shift_exe
 		break;
 	}
 }
-
 void PRG_sw() {
 	byte sw;
 	//berekend de gemaakte connectie tbv program
@@ -1659,7 +1614,6 @@ void BEEP_set(int bl) {
 void BEEP() { //lange beep
 	BEEP_set(500);
 }
-
 void ACT_exe(boolean time) { //activatie time true is met schakelaar 
 
 	if (~GPIOR1 & (1 << 5)) {
