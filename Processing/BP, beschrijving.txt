@@ -17,7 +17,7 @@ EEPROM
 116 TUP aantal keren dat speellengte kan worden verhoogd met 1 minuut
 
 120 TicTocMode  0=off (red) 1=on(green) 2=start activate (blue) 3=Start Puzzel (purple)
-
+121 HintMode 0=off (red, default) 1=always on(green), 2=Only kleurenpuzzel solved (blue)
 
 
 MEM_reg diverse instellingen
@@ -25,7 +25,7 @@ bit0 Start clock on power up
 bit1 Easy Mode (geen animaties) off=true on=false
 bit2 Beep on (true, default)
 bit3 Activatie schakelt naar activatie tijd On=false off=true(default)
-bit 4 Hint on (false) off(true)
+bit 4 nc
 
 common register GPIOR0
 bit0 clock runs(true) on hold(false)
@@ -34,7 +34,7 @@ bit2 finding free connection
 bit3 start puzzle true > make kleuren
 bit4 start puzzle, toon de kleuren, puzzle active false, not active true
 bit5 check for connection in start-up
-bit6 Gameread enabled false; disabled true
+bit6 Gameread enabled false; disabled true (Game solved???)
 bit7 status prgmode true =on 
 
 common register GPIOR1
@@ -50,7 +50,16 @@ bit7 Fastled request(true)
 common register GPIOR2
 bit0 tic (true) toc(false)
 bit1 Kleurenpuzzel is gestart nodig voor automatische start true =gestart
-bit2 ?? Leds uit tot bit is gezet
+bit2 Alle leds worden uitgezet als bit is gezet
 bit3 one shot only 1 start of puzzle 
 bit 4 game lezen om enkele shift actie
 bit 5 TicToc enabled true; disabled false (V2.0) Feitelijk gaan tikken.
+Bit 6 GAME SOLVED wordt gezet als puzzel is opgelost
+
+Ledstatus
+bit0 Timer binnen activatie tijd
+bit1 Timer binnen 1 minuut resterend
+bit2 Clock, second counter
+bit3 Bom gaat af
+bit4 Kleuren puzzel start (alleen bij ontsteker verwijderd)
+bit5 Kleuren puzzel opgelost
