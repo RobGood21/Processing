@@ -1047,6 +1047,7 @@ void SW_off(byte sw) {
 			GPIOR0 |= (1 << 3); //start gamestart
 			GPIOR0 |= (1 << 4); //disable game
 			GPIOR2 |= (1 << 3);
+			if (~GPIOR1 & (1 << 5))ACT_exe(true); //activatie als nog niet gedaan bij starten kleurenpuzzel
 		}
 		break;
 	case 5:
@@ -1114,7 +1115,7 @@ void ANIM_exe() { //called from shift_exe
 			switch (ANIM_count[1]) { //tijden
 			case 1:
 				ANIM_count[4] = 40; //bypass
-				PIEP_periode = 300;
+				PIEP_periode = 100; //was 300 voor V2.0
 				BEEP();
 				break;
 			case 2:
@@ -1614,7 +1615,7 @@ void BEEP_set(int bl) {
 void BEEP() { //lange beep
 	BEEP_set(500);
 }
-void ACT_exe(boolean time) { //activatie time true is met schakelaar 
+void ACT_exe(boolean time) { //activatie door timer=false, buttons of kleuren-puzzel start true
 
 	if (~GPIOR1 & (1 << 5)) {
 		GPIOR1 |= (1 << 5); //latching, only 1x use in a game
@@ -1634,6 +1635,7 @@ void ACT_exe(boolean time) { //activatie time true is met schakelaar
 		for (byte i = 0; i < 4; i++) {
 			PIEP_count[i] = 0;
 		}
+
 		//Als bij bereiken activatie de puzzel niet is gestart..
 		if (~GPIOR2 & (1 << 1)) { //puzzel niet gestart
 
